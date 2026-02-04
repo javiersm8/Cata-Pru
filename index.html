@@ -155,7 +155,7 @@
                     <button type="button" onclick="openFolderModal()" class="bg-yellow-600 hover:bg-yellow-500 text-white px-3 py-2 rounded-lg transition shadow text-sm" title="Nueva Carpeta">
                         <i class="fas fa-folder-plus"></i>
                     </button>
-                    <button type="button" onclick="toggleForm()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded-lg transition shadow text-sm" title="Añadir Imagen">
+                    <button type="button" onclick="openFormForNew()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded-lg transition shadow text-sm" title="Añadir Imagen">
                         <i class="fas fa-plus"></i>
                     </button>
                 </div>
@@ -169,19 +169,21 @@
             </div>
         </div>
 
-        <div class="container mx-auto p-4 flex-grow overflow-y-auto relative">
+        <div class="container mx-auto p-4 flex-grow overflow-y-auto relative" id="mainContainer">
             
             <div id="addFormContainer" class="hidden mb-8 bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 fade-in">
                 <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-lg font-semibold text-gray-700 dark:text-gray-200">Nueva Imagen en: <span id="currentFolderLabel" class="text-blue-600 dark:text-blue-400 font-bold">Inicio</span></h2>
+                    <h2 class="text-lg font-semibold text-gray-700 dark:text-gray-200">
+                        <span id="formTitle">Nueva Imagen</span> en: <span id="currentFolderLabel" class="text-blue-600 dark:text-blue-400 font-bold">Inicio</span>
+                    </h2>
                     <div class="flex items-center gap-3">
-                        <div class="relative">
+                        <div class="relative" id="csvButtonContainer">
                             <input type="file" id="csvInput" accept=".csv" class="hidden" onchange="handleCSVUpload(event)">
                             <button type="button" onclick="document.getElementById('csvInput').click()" class="text-sm bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-3 py-1 rounded border border-green-200 dark:border-green-800 hover:bg-green-200 transition flex items-center gap-2">
                                 <i class="fas fa-file-csv"></i> Importar CSV
                             </button>
                         </div>
-                        <button type="button" onclick="toggleForm()" class="text-gray-400 hover:text-red-500"><i class="fas fa-times"></i></button>
+                        <button type="button" onclick="closeForm()" class="text-gray-400 hover:text-red-500"><i class="fas fa-times"></i></button>
                     </div>
                 </div>
 
@@ -209,10 +211,10 @@
                     </div>
 
                     <div class="flex justify-between items-center pt-2">
-                        <p class="text-xs text-gray-400">CSV orden: Título, Autor, Fecha, Estilo (Categ), Técnica, URL</p>
+                        <p class="text-xs text-gray-400" id="csvHint">CSV orden: Título, Autor, Fecha, Estilo (Categ), Técnica, URL</p>
                         <div class="flex gap-2">
-                            <button type="button" onclick="toggleForm()" class="px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded">Cancelar</button>
-                            <button type="submit" class="px-6 py-2 bg-green-600 hover:bg-green-500 text-white rounded shadow transition">Guardar</button>
+                            <button type="button" onclick="closeForm()" class="px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded">Cancelar</button>
+                            <button type="submit" id="formSubmitBtn" class="px-6 py-2 bg-green-600 hover:bg-green-500 text-white rounded shadow transition">Guardar</button>
                         </div>
                     </div>
                 </form>
@@ -347,9 +349,10 @@
         let saveTimeout;
         let authMode = 'login';
         
-        // Estado para Lightbox
+        // Estado para Lightbox y Edición
         let currentLightboxIndex = -1;
         let currentFolderImages = [];
+        let editingImageId = null;
 
         const inputClass = "w-full p-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:border-blue-500 dark:bg-gray-700 dark:text-white";
         document.querySelectorAll('.input-std').forEach(el => el.className = inputClass);
@@ -492,68 +495,40 @@
         function handleCSVUpload(event) {
             const file = event.target.files[0];
             if (!file) return;
-
             const reader = new FileReader();
-            reader.onload = function(e) {
-                const text = e.target.result;
-                processCSVData(text);
-                document.getElementById('csvInput').value = ''; // Reset input
-            };
+            reader.onload = function(e) { processCSVData(e.target.result); document.getElementById('csvInput').value = ''; };
             reader.readAsText(file);
         }
 
         function processCSVData(text) {
-            // Normalizar saltos de línea y filtrar líneas vacías
             const lines = text.split(/\r?\n/).filter(line => line.trim() !== "");
-            
             if(lines.length < 1) return showToast('error', 'Archivo vacío');
-
-            // Detectar separador (coma o punto y coma)
             const firstLine = lines[0];
             const separator = firstLine.includes(';') ? ';' : ',';
-
             let count = 0;
-            
             lines.forEach(line => {
-                // Parseo simple asumiendo que no hay comas/puntos y coma dentro de las celdas
-                // Para algo más robusto, se necesitaría un parser completo, pero esto cubre el 90% de casos
                 const cols = line.split(separator).map(c => c.trim());
-                
-                // Estructura esperada:
-                // 0: Título, 1: Autor, 2: Fecha, 3: Estilo (Cat), 4: Técnica, 5: URL
-                
                 const url = cols[5] || "";
-                
-                // Solo añadir si hay URL válida (básica validación)
                 if (url && url.length > 5) {
                     fileSystem.images.push({
-                        id: Date.now() + Math.random(), // Random para evitar colisiones en bucle rápido
+                        id: Date.now() + Math.random(), 
                         parentId: currentFolderId,
                         src: url,
                         title: cols[0] || "Sin título",
                         author: cols[1] || "Desconocido",
                         date: cols[2] || "-",
-                        category: cols[3] || "General", // Estilo se guarda en Category
+                        category: cols[3] || "General",
                         technique: cols[4] || "-",
-                        location: "",
-                        description: ""
+                        location: "", description: ""
                     });
                     count++;
                 }
             });
-
-            if (count > 0) {
-                showToast('success', `${count} imágenes importadas`);
-                render();
-                toggleForm();
-                syncToCloud();
-            } else {
-                showToast('error', 'No se encontraron filas válidas con URL');
-            }
+            if (count > 0) { showToast('success', `${count} imágenes importadas`); render(); closeForm(); syncToCloud(); } 
+            else { showToast('error', 'No se encontraron filas válidas con URL'); }
         }
 
-
-        // --- LOGICA IMAGENES ---
+        // --- LOGICA IMAGENES (AÑADIR Y EDITAR) ---
         async function autoFillWikimedia() {
             const urlInput = document.getElementById('imgUrl');
             const url = urlInput.value.trim();
@@ -597,17 +572,83 @@
             finally { btn.innerHTML = originalIcon; btn.disabled = false; }
         }
 
-        function saveImage(src) {
-            fileSystem.images.push({
-                id: Date.now(), parentId: currentFolderId, src,
-                title: document.getElementById('title').value || "Sin título",
-                author: document.getElementById('author').value || "Desconocido",
-                date: document.getElementById('date').value || "-",
-                technique: document.getElementById('technique').value || "-", 
-                category: "General", location: "", description: ""
-            });
-            render(); document.getElementById('imageForm').reset(); toggleForm(); syncToCloud();
+        // Abre el formulario en modo "Crear Nueva"
+        function openFormForNew() {
+            editingImageId = null;
+            document.getElementById('imageForm').reset();
+            document.getElementById('formTitle').textContent = "Nueva Imagen";
+            document.getElementById('formSubmitBtn').textContent = "Guardar";
+            document.getElementById('csvButtonContainer').classList.remove('hidden'); // Mostrar botón CSV
+            document.getElementById('csvHint').classList.remove('hidden');
+            
+            document.getElementById('addFormContainer').classList.remove('hidden');
+            document.getElementById('mainContainer').scrollTo(0, 0);
         }
+
+        // Abre el formulario en modo "Editar"
+        function editImage(e, id) {
+            e.stopPropagation();
+            const img = fileSystem.images.find(i => i.id === id);
+            if(!img) return;
+
+            // Rellenar datos
+            document.getElementById('imgUrl').value = img.src;
+            document.getElementById('title').value = img.title;
+            document.getElementById('author').value = img.author;
+            document.getElementById('date').value = img.date;
+            document.getElementById('technique').value = img.technique;
+            
+            // Configurar estado
+            editingImageId = id;
+            document.getElementById('formTitle').textContent = "Editar Imagen";
+            document.getElementById('formSubmitBtn').textContent = "Actualizar";
+            document.getElementById('csvButtonContainer').classList.add('hidden'); // Ocultar CSV al editar
+            document.getElementById('csvHint').classList.add('hidden');
+
+            document.getElementById('addFormContainer').classList.remove('hidden');
+            document.getElementById('mainContainer').scrollTo(0, 0);
+        }
+
+        function closeForm() {
+            document.getElementById('addFormContainer').classList.add('hidden');
+            document.getElementById('imageForm').reset();
+            editingImageId = null;
+        }
+
+        function handleFormSubmit(e) {
+            e.preventDefault();
+            const url = document.getElementById('imgUrl').value;
+            if(!url) return;
+
+            if (editingImageId) {
+                // MODO EDICIÓN
+                const img = fileSystem.images.find(i => i.id === editingImageId);
+                if(img) {
+                    img.src = url;
+                    img.title = document.getElementById('title').value || "Sin título";
+                    img.author = document.getElementById('author').value || "Desconocido";
+                    img.date = document.getElementById('date').value || "-";
+                    img.technique = document.getElementById('technique').value || "-";
+                }
+                showToast('success', 'Imagen actualizada');
+            } else {
+                // MODO CREACIÓN
+                fileSystem.images.push({
+                    id: Date.now(), parentId: currentFolderId, src: url,
+                    title: document.getElementById('title').value || "Sin título",
+                    author: document.getElementById('author').value || "Desconocido",
+                    date: document.getElementById('date').value || "-",
+                    technique: document.getElementById('technique').value || "-", 
+                    category: "General", location: "", description: ""
+                });
+                showToast('success', 'Imagen creada');
+            }
+            
+            render(); 
+            closeForm(); 
+            syncToCloud();
+        }
+
         function deleteImage(e, id) {
             e.stopPropagation();
             if(!confirm("¿Borrar imagen?")) return;
@@ -708,9 +749,14 @@
                             <p class="text-xs text-gray-400 truncate">${img.author || ''}</p>
                         </div>
                     </div>
-                    <button type="button" onclick="deleteImage(event, ${img.id})" class="bg-gray-50 dark:bg-gray-900 text-gray-400 hover:text-red-500 py-2 border-t border-gray-100 dark:border-gray-700 flex items-center justify-center gap-1 text-xs uppercase font-bold w-full">
-                        <i class="fas fa-trash"></i> Borrar
-                    </button>
+                    <div class="flex border-t border-gray-100 dark:border-gray-700">
+                        <button type="button" onclick="editImage(event, ${img.id})" class="flex-1 bg-gray-50 dark:bg-gray-900 text-blue-500 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-gray-800 py-2 border-r border-gray-100 dark:border-gray-700 flex items-center justify-center gap-1 text-xs uppercase font-bold transition">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button type="button" onclick="deleteImage(event, ${img.id})" class="flex-1 bg-gray-50 dark:bg-gray-900 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-gray-800 py-2 flex items-center justify-center gap-1 text-xs uppercase font-bold transition">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
                 `;
                 grid.appendChild(div);
             });
@@ -748,29 +794,21 @@
         }
         function openFolderModal() { document.getElementById('newFolderName').value=""; document.getElementById('folderModal').classList.remove('hidden'); }
         function closeFolderModal() { document.getElementById('folderModal').classList.add('hidden'); }
-        function toggleForm() { document.getElementById('addFormContainer').classList.toggle('hidden'); }
-        function handleFormSubmit(e) { e.preventDefault(); const url = document.getElementById('imgUrl').value; if(url) saveImage(url); }
         
         // --- UPDATED LIGHTBOX ---
         function openLightbox(id) {
-            // Filtrar imágenes de la vista actual para la navegación
             currentFolderImages = fileSystem.images.filter(img => img.parentId === currentFolderId);
             currentLightboxIndex = currentFolderImages.findIndex(i => i.id === id);
-            
             updateLightboxContent();
             document.getElementById('lightbox').classList.remove('hidden');
         }
 
         function changeLightboxImage(e, direction) {
-            if(e) e.stopPropagation(); // Evitar que el clic en la flecha cierre el modal
+            if(e) e.stopPropagation(); 
             if(currentLightboxIndex === -1 || currentFolderImages.length === 0) return;
-
             let newIndex = currentLightboxIndex + direction;
-            
-            // Loop (carrusel infinito)
             if (newIndex < 0) newIndex = currentFolderImages.length - 1;
             if (newIndex >= currentFolderImages.length) newIndex = 0;
-
             currentLightboxIndex = newIndex;
             updateLightboxContent();
         }
@@ -778,20 +816,13 @@
         function updateLightboxContent() {
             if(currentLightboxIndex === -1) return;
             const img = currentFolderImages[currentLightboxIndex];
-            
             document.getElementById('lightboxImg').src = img.src;
             document.getElementById('lbTitle').textContent = img.title;
-            // Mostrar info extra
             const meta = [img.author, img.date].filter(Boolean).join(' | ');
             document.getElementById('lbMeta').textContent = meta;
         }
 
-        function closeLightbox(e) { 
-            // Cierra solo si se hace clic en el fondo negro, no en la imagen
-            if(e.target.id === 'lightbox') {
-                document.getElementById('lightbox').classList.add('hidden'); 
-            }
-        }
+        function closeLightbox(e) { if(e.target.id === 'lightbox') document.getElementById('lightbox').classList.add('hidden'); }
         function closeLightboxForce() { document.getElementById('lightbox').classList.add('hidden'); }
         
         function toggleDarkMode() { document.documentElement.classList.toggle('dark'); updateThemeIcon(); }
