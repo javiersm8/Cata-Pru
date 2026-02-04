@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="referrer" content="no-referrer">
+    <title>Catálogo Nube</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script> tailwind.config = { darkMode: 'class' } </script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+
+    <style>
+        /* Estilos base */
+        body, .bg-card, .text-content { transition: background-color 0.3s, color 0.3s; }
+        .folder-card, .image-card { transition: transform 0.2s; }
+        .folder-card:hover, .image-card:hover { transform: translateY(-3px); }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        /* --- MOTOR DE FLASHCARDS 3D --- */
+        .scene { perspective: 1000px; width: 100%; height: 100%; }
+        .card-3d { width: 100%; height: 100%; position: relative; transition: transform 0.6s; transform-style: preserve-3d; }
+        .card-3d.flipped { transform: rotateY(180deg); }
+        .card-face {
+            position: absolute; width: 100%; height: 100%;
+            backface-visibility: hidden; -webkit-backface-visibility: hidden;
+            border-radius: 1rem; overflow: hidden; display: flex; flex-direction: column;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        .card-front { background: #000; z-index: 2; transform: rotateY(0deg); }
+        .card-back { background: white; transform: rotateY(180deg); z-index: 1; }
+        .dark .card-back { background: #1f2937; }
+        
+        .zoom-container { overflow: auto; display: flex; align-items: center; justify-content: center; height: 100%; width: 100%; }
+
+        .status-toast { 
+            position: fixed; bottom: 20px; right: 20px; 
+            padding: 10px 20px; border-radius: 8px; font-weight: 600; font-size: 0.9rem; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15); 
+            opacity: 0; transform: translateY(20px); transition: all 0.3s; 
+            z-index: 100; display: flex; items-center; gap: 8px;
+        }
+        .status-toast.show { opacity: 1; transform: translateY(0); }
+        .status-success { background: #10b981; color: white; }
+        .status-error { background: #ef4444; color: white; }
+        .status-loading { background: #3b82f6; color: white; }
+
+        /* Login */
+        #loginScreen {
+            position: fixed; inset: 0; z-index: 1000;
+            background: rgba(17, 24, 39, 0.95);
+            display: flex; flex-direction: column;
+            justify-content: center; items-center;
+            overflow-y: auto; padding: 20px;
+        }
+        #loginScreen.hidden { display: none !important; }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-100 h-screen flex flex-col transition-colors duration-300">
+
+    <div id="loginScreen">
+        <div class="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-md fade-in relative overflow-hidden">
+            <div class="text-center mb-6">
+                <i class="fas fa-cloud text-5xl text-blue-500 mb-4"></i>
+                <h1 class="text-2xl font-bold dark:text-white">Catálogo Nube</h1>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Gestiona y estudia tus imágenes</p>
+            </div>
+
+            <div class="flex border-b border-gray-200 dark:border-gray-700 mb-6">
+                <button onclick="switchAuthMode('login')" id="tabLogin" class="flex-1 pb-2 font-semibold text-blue-600 border-b-2 border-blue-600 transition-colors">Iniciar Sesión</button>
+                <button onclick="switchAuthMode('register')" id="tabRegister" class="flex-1 pb-2 font-semibold text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors">Registrarse</button>
+            </div>
+
+            <form onsubmit="handleEmailAuth(event)" class="space-y-4">
+                <div id="nameField" class="hidden">
+                    <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">NOMBRE</label>
+                    <input type="text" id="authName" placeholder="Tu nombre" class="w-full p-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">CORREO ELECTRÓNICO</label>
+                    <input type="email" id="authEmail" placeholder="ejemplo@correo.com" required class="w-full p-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">CONTRASEÑA</label>
+                    <input type="password" id="authPassword" placeholder="******" required class="w-full p-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition">
+                </div>
+
+                <div id="authErrorMsg" class="text-red-500 text-sm text-center hidden"></div>
+
+                <button type="submit" id="submitAuthBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-lg transform transition active:scale-95">
+                    Entrar
+                </button>
+            </form>
+
+            <div class="relative my-6">
+                <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-gray-300 dark:border-gray-600"></div></div>
+                <div class="relative flex justify-center text-sm"><span class="px-2 bg-white dark:bg-gray-800 text-gray-500">O continúa con</span></div>
+            </div>
+
+            <button type="button" onclick="loginWithGoogle()" class="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-white font-semibold py-3 px-4 rounded-lg flex items-center justify-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-600 transition shadow-sm">
+                <img src="https://www.svgrepo.com/show/475656/google-color.svg" class="w-5 h-5">
+                Google
+            </button>
+        </div>
+    </div>
+
+    <div id="appInterface" class="flex flex-col h-full hidden">
+        
+        <div id="statusToast" class="status-toast status-loading">
+            <i class="fas fa-circle-notch fa-spin"></i> <span>Cargando...</span>
+        </div>
+
+        <nav class="bg-blue-900 dark:bg-gray-800 text-white p-4 shadow-lg sticky top-0 z-40">
+            <div class="container mx-auto flex justify-between items-center flex-wrap gap-4">
+                <h1 class="text-xl font-bold flex items-center gap-2 cursor-pointer select-none" onclick="goHome()">
+                    <i class="fas fa-cloud"></i> <span class="hidden sm:inline">Catálogo Nube</span>
+                </h1>
+                
+                <div class="flex gap-3 items-center ml-auto">
+                    <button type="button" onclick="logout()" class="text-sm font-semibold bg-red-600/20 hover:bg-red-600/40 px-3 py-1 rounded-full border border-red-500/50 flex items-center gap-2 transition">
+                        <img id="userAvatar" src="" class="w-5 h-5 rounded-full hidden">
+                        <div id="defaultAvatar" class="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center text-xs font-bold hidden">U</div>
+                        <span id="userName" class="hidden sm:inline">Usuario</span>
+                        <i class="fas fa-sign-out-alt"></i>
+                    </button>
+                    <div class="h-6 w-px bg-blue-700 mx-2 hidden sm:block"></div>
+                    <button type="button" onclick="toggleDarkMode()" class="p-2 rounded-full hover:bg-white/10 transition" title="Cambiar Tema">
+                        <i id="themeIcon" class="fas fa-moon"></i>
+                    </button>
+                    <button type="button" onclick="openStudyConfig()" class="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-lg transition shadow flex items-center gap-2 font-medium">
+                        <i class="fas fa-brain"></i> <span class="hidden sm:inline">Aprender</span>
+                    </button>
+                    <button type="button" onclick="openFolderModal()" class="bg-yellow-600 hover:bg-yellow-500 text-white px-3 py-2 rounded-lg transition shadow text-sm" title="Nueva Carpeta">
+                        <i class="fas fa-folder-plus"></i>
+                    </button>
+                    <button type="button" onclick="toggleForm()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded-lg transition shadow text-sm" title="Añadir Imagen">
+                        <i class="fas fa-plus"></i>
+                    </button>
+                </div>
+            </div>
+        </nav>
+
+        <div class="bg-white dark:bg-gray-800 border-b dark:border-gray-700 px-4 py-2 shadow-sm transition-colors">
+            <div class="container mx-auto flex items-center text-sm text-gray-600 dark:text-gray-300 overflow-x-auto no-scrollbar whitespace-nowrap">
+                <button onclick="goHome()" class="hover:text-blue-500 font-semibold flex items-center gap-1"><i class="fas fa-home"></i> Inicio</button>
+                <span id="breadcrumbContainer" class="flex items-center"></span>
+            </div>
+        </div>
+
+        <div class="container mx-auto p-4 flex-grow overflow-y-auto relative">
+            
+            <div id="addFormContainer" class="hidden mb-8 bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 fade-in">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-semibold text-gray-700 dark:text-gray-200">Nueva Imagen en: <span id="currentFolderLabel" class="text-blue-600 dark:text-blue-400 font-bold">Inicio</span></h2>
+                    <button type="button" onclick="toggleForm()" class="text-gray-400 hover:text-red-500"><i class="fas fa-times"></i></button>
+                </div>
+
+                <form id="imageForm" onsubmit="handleFormSubmit(event)" class="space-y-4">
+                    <div id="urlInputContainer" class="flex gap-2">
+                        <input type="url" id="imgUrl" placeholder="Pega URL de imagen (Wikimedia, etc)..." 
+                            class="flex-grow p-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded focus:ring-2 focus:ring-blue-500 outline-none transition-all">
+                        
+                        <button type="button" onclick="autoFillWikimedia()" id="btnMagic" class="bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white px-4 rounded shadow-md transition-all active:scale-95 flex items-center gap-2" title="Autorellenar">
+                            <i class="fas fa-wand-magic-sparkles"></i> 
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <input type="text" id="title" placeholder="Título de la obra" class="input-std">
+                        <input type="text" id="technique" placeholder="Técnica y Soporte (ej: Óleo sobre lienzo)" class="input-std">
+                        <input type="text" id="author" placeholder="Autor" class="input-std">
+                        <input type="text" id="date" placeholder="Fecha" class="input-std">
+                    </div>
+                    
+                    <div class="hidden">
+                        <select id="category" class="input-std"><option value="General">General</option></select>
+                        <input type="text" id="location">
+                        <textarea id="description"></textarea>
+                    </div>
+
+                    <div class="flex justify-end gap-2 pt-2">
+                        <button type="button" onclick="toggleForm()" class="px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded">Cancelar</button>
+                        <button type="submit" class="px-6 py-2 bg-green-600 hover:bg-green-500 text-white rounded shadow transition">Guardar</button>
+                    </div>
+                </form>
+            </div>
+
+            <div id="mainGrid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 pb-20"></div>
+            <div id="emptyState" class="hidden text-center py-20 text-gray-400 dark:text-gray-600">
+                <i class="fas fa-folder-open text-6xl mb-4 opacity-50"></i>
+                <p>Carpeta vacía.</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="folderModal" class="fixed inset-0 z-50 bg-black bg-opacity-50 hidden flex justify-center items-center backdrop-blur-sm">
+        <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-2xl w-80 fade-in">
+            <h3 class="text-lg font-bold mb-4 dark:text-white">Nueva Carpeta</h3>
+            <input type="text" id="newFolderName" placeholder="Nombre..." class="w-full p-2 border rounded mb-4 dark:bg-gray-700 dark:border-gray-600 dark:text-white outline-none" onkeyup="if(event.key === 'Enter') createFolder()">
+            <div class="flex justify-end gap-2">
+                <button type="button" onclick="closeFolderModal()" class="px-3 py-1 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded">Cancelar</button>
+                <button type="button" onclick="createFolder()" class="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-500">Crear</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="studyConfigModal" class="fixed inset-0 z-50 bg-black bg-opacity-80 hidden flex justify-center items-center backdrop-blur-sm">
+        <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-2xl w-full max-w-md fade-in">
+            <h3 class="text-xl font-bold mb-2 dark:text-white flex items-center gap-2"><i class="fas fa-tasks text-purple-500"></i> Configurar Sesión</h3>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">Selecciona las carpetas:</p>
+            <div id="folderSelectionList" class="max-h-60 overflow-y-auto mb-4 border border-gray-200 dark:border-gray-700 rounded p-2 bg-gray-50 dark:bg-gray-900"></div>
+            <div class="flex justify-between items-center border-t dark:border-gray-700 pt-4">
+                <label class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300 cursor-pointer">
+                    <input type="checkbox" id="selectAllCheck" onchange="toggleSelectAllFolders(this)" class="accent-purple-600"> Todo
+                </label>
+                <div class="flex gap-2">
+                    <button type="button" onclick="document.getElementById('studyConfigModal').classList.add('hidden')" class="px-4 py-2 text-gray-500 rounded">Cancelar</button>
+                    <button type="button" onclick="confirmStudySession()" class="px-6 py-2 bg-purple-600 text-white rounded font-bold">Empezar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="studyModal" class="fixed inset-0 z-50 bg-gray-900 hidden flex flex-col items-center justify-center p-4">
+        <div class="absolute top-0 left-0 right-0 p-4 flex justify-between items-center text-white bg-gray-800 shadow-md z-10">
+            <div class="flex items-center gap-4">
+                <span class="font-bold"><i class="fas fa-brain text-purple-400"></i> Estudio</span>
+                <div class="flex items-center gap-2 bg-gray-700 px-3 py-1 rounded-full">
+                    <input type="range" id="zoomSlider" min="0.5" max="2.5" step="0.1" value="1" oninput="updateZoom(this.value)" class="w-24 accent-purple-500 cursor-pointer">
+                </div>
+            </div>
+            <button type="button" onclick="endStudySession()" class="text-gray-400 hover:text-white"><i class="fas fa-times text-xl"></i></button>
+        </div>
+
+        <div id="studyCardContainer" class="relative w-full max-w-3xl h-[75vh] mt-12 scene">
+            <div id="studyCardInner" class="card-3d">
+                
+                <div class="card-face card-front border border-gray-700">
+                    <div class="flex-grow relative overflow-hidden bg-opacity-90">
+                         <div class="zoom-container"><img id="studyImgFront" src="" class="max-w-none transition-transform duration-100" style="max-height: 100%;" referrerpolicy="no-referrer"></div>
+                    </div>
+                    <div class="h-20 bg-gray-50 dark:bg-gray-800 flex items-center justify-center relative border-t border-gray-700">
+                         <button type="button" onclick="flipCardToBack()" class="bg-blue-600 hover:bg-blue-500 text-white px-12 py-3 rounded-full font-bold shadow-lg transform transition active:scale-95">Ver Datos <i class="fas fa-eye"></i></button>
+                    </div>
+                </div>
+
+                <div class="card-face card-back border border-gray-700">
+                    <div class="flex-grow p-8 flex flex-col justify-center items-center text-center overflow-y-auto">
+                        <h2 id="studyTitle" class="text-3xl font-bold text-gray-800 dark:text-white mb-8"></h2>
+                        <div class="w-full max-w-lg space-y-6 text-left bg-gray-100 dark:bg-gray-700 p-6 rounded-xl border border-gray-200 dark:border-gray-600">
+                            <div class="border-b border-gray-300 dark:border-gray-600 pb-2">
+                                <span class="text-xs text-gray-400 uppercase font-bold tracking-wider">Autor</span>
+                                <p id="studyAuthor" class="text-xl text-blue-600 dark:text-blue-400 font-semibold mt-1"></p>
+                            </div>
+                            <div class="border-b border-gray-300 dark:border-gray-600 pb-2">
+                                <span class="text-xs text-gray-400 uppercase font-bold tracking-wider">Fecha</span>
+                                <p id="studyDate" class="text-lg text-gray-800 dark:text-white mt-1"></p>
+                            </div>
+                            <div>
+                                <span class="text-xs text-gray-400 uppercase font-bold tracking-wider">Técnica / Soporte</span>
+                                <p id="studyTechnique" class="text-lg text-purple-600 dark:text-purple-400 font-medium mt-1"></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="h-24 bg-gray-100 dark:bg-gray-900 flex items-center px-4 gap-4 border-t border-gray-200 dark:border-gray-700">
+                        <button type="button" onclick="rateCard(false)" class="flex-1 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-300 h-14 rounded-xl font-bold border border-red-300 dark:border-red-800 hover:bg-red-200 dark:hover:bg-red-900/50 transition">Repasar</button>
+                        <button type="button" onclick="rateCard(true)" class="flex-1 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-300 h-14 rounded-xl font-bold border border-green-300 dark:border-green-800 hover:bg-green-200 dark:hover:bg-green-900/50 transition">Me la sé</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="studyEndMsg" class="hidden text-center text-white">
+            <h2 class="text-4xl font-bold mb-4">¡Sesión Terminada!</h2>
+            <p class="text-gray-400 mb-8">No quedan cartas en la cola de repaso.</p>
+            <button type="button" onclick="endStudySession()" class="bg-white text-gray-900 px-8 py-3 rounded-full font-bold hover:scale-105 transition">Volver al Inicio</button>
+        </div>
+    </div>
+
+    <div id="lightbox" class="fixed inset-0 z-50 bg-black bg-opacity-95 hidden flex justify-center items-center" onclick="closeLightbox()">
+        <button class="absolute top-4 right-4 text-white text-4xl">&times;</button>
+        <div class="relative w-full h-full flex flex-col justify-center items-center p-4">
+            <img id="lightboxImg" src="" class="max-h-[80vh] max-w-full object-contain rounded border border-gray-700" referrerpolicy="no-referrer">
+            <h2 id="lbTitle" class="text-xl font-bold text-white mt-4"></h2>
+        </div>
+    </div>
+
+    <script>
+        // --- CONFIGURACIÓN DE FIREBASE ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyBpgow3Bg5kbp7EuVceig9s_t33q4_VcSY",
+            authDomain: "micatalogoapp-270f9.firebaseapp.com",
+            projectId: "micatalogoapp-270f9",
+            storageBucket: "micatalogoapp-270f9.firebasestorage.app",
+            messagingSenderId: "513722352831",
+            appId: "1:513722352831:web:2b2c04d99948d684cf720a"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        // ESTADO
+        let currentUser = null;
+        let currentFolderId = null;
+        let fileSystem = { folders: [], images: [] };
+        let studyQueue = [];
+        let saveTimeout;
+        let authMode = 'login'; // login | register
+
+        const inputClass = "w-full p-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:border-blue-500 dark:bg-gray-700 dark:text-white";
+        document.querySelectorAll('.input-std').forEach(el => el.className = inputClass);
+
+        // --- AUTH LOGIC ACTUALIZADA ---
+        
+        // 1. Alternar entre Login y Registro
+        function switchAuthMode(mode) {
+            authMode = mode;
+            const tabLogin = document.getElementById('tabLogin');
+            const tabRegister = document.getElementById('tabRegister');
+            const btn = document.getElementById('submitAuthBtn');
+            const nameField = document.getElementById('nameField');
+            const errorMsg = document.getElementById('authErrorMsg');
+
+            errorMsg.classList.add('hidden'); // Limpiar errores
+
+            if (mode === 'login') {
+                tabLogin.className = "flex-1 pb-2 font-semibold text-blue-600 border-b-2 border-blue-600 transition-colors";
+                tabRegister.className = "flex-1 pb-2 font-semibold text-gray-500 hover:text-gray-700 dark:text-gray-400 transition-colors";
+                btn.textContent = "Iniciar Sesión";
+                nameField.classList.add('hidden');
+            } else {
+                tabRegister.className = "flex-1 pb-2 font-semibold text-blue-600 border-b-2 border-blue-600 transition-colors";
+                tabLogin.className = "flex-1 pb-2 font-semibold text-gray-500 hover:text-gray-700 dark:text-gray-400 transition-colors";
+                btn.textContent = "Crear Cuenta";
+                nameField.classList.remove('hidden');
+            }
+        }
+
+        // 2. Manejar Formulario de Correo
+        async function handleEmailAuth(e) {
+            e.preventDefault();
+            const email = document.getElementById('authEmail').value;
+            const password = document.getElementById('authPassword').value;
+            const name = document.getElementById('authName').value;
+            const errorMsg = document.getElementById('authErrorMsg');
+            const btn = document.getElementById('submitAuthBtn');
+
+            errorMsg.classList.add('hidden');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Procesando...';
+
+            try {
+                if (authMode === 'register') {
+                    // Registro
+                    const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+                    // Si se proporcionó nombre, actualizar perfil
+                    if (name) {
+                        await userCredential.user.updateProfile({ displayName: name });
+                        // Forzar refresco visual
+                        document.getElementById('userName').textContent = name;
+                        document.getElementById('defaultAvatar').textContent = name.charAt(0).toUpperCase();
+                    }
+                } else {
+                    // Login
+                    await auth.signInWithEmailAndPassword(email, password);
+                }
+                // El authStateChanged se encarga del resto
+            } catch (error) {
+                console.error(error);
+                let msg = "Error desconocido.";
+                if (error.code === 'auth/wrong-password') msg = "Contraseña incorrecta.";
+                else if (error.code === 'auth/user-not-found') msg = "No existe cuenta con este correo.";
+                else if (error.code === 'auth/email-already-in-use') msg = "Este correo ya está registrado.";
+                else if (error.code === 'auth/weak-password') msg = "La contraseña es muy débil (min 6 caracteres).";
+                else if (error.code === 'auth/invalid-email') msg = "El formato del correo no es válido.";
+                
+                errorMsg.textContent = msg;
+                errorMsg.classList.remove('hidden');
+                btn.disabled = false;
+                btn.textContent = authMode === 'login' ? "Iniciar Sesión" : "Crear Cuenta";
+            }
+        }
+
+        // 3. Login con Google (Cambiado a Popup para evitar errores de redirect)
+        async function loginWithGoogle() { 
+            try {
+                await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
+            } catch (error) {
+                console.error("Error Google:", error);
+                alert("Error al iniciar con Google: " + error.message);
+            }
+        }
+
+        function logout() { auth.signOut(); window.location.reload(); }
+
+        auth.onAuthStateChanged(user => {
+            const loginScreen = document.getElementById('loginScreen');
+            const appInterface = document.getElementById('appInterface');
+            if (user) {
+                currentUser = user;
+                loginScreen.classList.add('hidden'); 
+                appInterface.classList.remove('hidden');
+                
+                // Lógica de Avatar / Nombre
+                const displayName = user.displayName || user.email.split('@')[0];
+                document.getElementById('userName').textContent = displayName;
+                
+                if(user.photoURL) {
+                    document.getElementById('userAvatar').src = user.photoURL;
+                    document.getElementById('userAvatar').classList.remove('hidden');
+                    document.getElementById('defaultAvatar').classList.add('hidden');
+                } else {
+                    document.getElementById('userAvatar').classList.add('hidden');
+                    const defAvatar = document.getElementById('defaultAvatar');
+                    defAvatar.classList.remove('hidden');
+                    defAvatar.textContent = displayName.charAt(0).toUpperCase();
+                }
+
+                initApp();
+            } else {
+                loginScreen.classList.remove('hidden');
+                appInterface.classList.add('hidden');
+            }
+        });
+
+        // --- DATABASE ---
+        async function loadCloudData() {
+            showToast('loading', 'Sincronizando...');
+            try {
+                const docRef = db.collection('usuarios').doc(currentUser.uid);
+                const docSnap = await docRef.get();
+                if (docSnap.exists) {
+                    fileSystem = docSnap.data();
+                    showToast('success', 'Datos cargados');
+                } else {
+                    fileSystem = { folders: [], images: [] };
+                    await docRef.set(fileSystem);
+                }
+                render();
+            } catch (error) {
+                console.error(error);
+                showToast('error', 'Error de conexión');
+            }
+        }
+        async function syncToCloud() {
+            if (!currentUser) return;
+            showToast('loading', 'Guardando...');
+            try {
+                await db.collection('usuarios').doc(currentUser.uid).set(fileSystem);
+                showToast('success', 'Guardado');
+            } catch (error) { showToast('error', 'No se pudo guardar'); }
+        }
+        function initApp() {
+            if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+            }
+            updateThemeIcon();
+            loadCloudData(); 
+        }
+
+        // --- LOGICA IMAGENES ---
+        async function autoFillWikimedia() {
+            const urlInput = document.getElementById('imgUrl');
+            const url = urlInput.value.trim();
+            const btn = document.getElementById('btnMagic');
+            const originalIcon = btn.innerHTML;
+            if (!url) return showToast('error', 'Pega una URL primero');
+            let filename = null;
+            const wikiMatch = url.match(/File:(.+?)(&|$|#)/);
+            if (wikiMatch) filename = wikiMatch[1];
+            if (!filename && url.includes('upload.wikimedia.org')) {
+                const parts = url.split('/');
+                filename = decodeURIComponent(parts[parts.length - 1]);
+            }
+            if (!filename) return showToast('error', 'No detecto archivo Wikimedia');
+            filename = decodeURIComponent(filename).replace(/_/g, ' ');
+            btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i>';
+            btn.disabled = true;
+            try {
+                const apiUrl = `https://commons.wikimedia.org/w/api.php?action=query&prop=imageinfo&iiprop=extmetadata|url&titles=File:${encodeURIComponent(filename)}&format=json&origin=*`;
+                const response = await fetch(apiUrl);
+                const data = await response.json();
+                const pages = data.query.pages;
+                const pageId = Object.keys(pages)[0];
+                if (pageId === "-1") throw new Error("No encontrado");
+                const info = pages[pageId].imageinfo[0];
+                const meta = info.extmetadata;
+                if (info.url) document.getElementById('imgUrl').value = info.url;
+                const clean = (html) => {
+                    if (!html) return "";
+                    const tmp = document.createElement("DIV");
+                    tmp.innerHTML = html;
+                    return tmp.textContent || tmp.innerText || "";
+                };
+                if (meta.ObjectName) document.getElementById('title').value = clean(meta.ObjectName.value);
+                else document.getElementById('title').value = clean(filename);
+                if (meta.Artist) document.getElementById('author').value = clean(meta.Artist.value);
+                if (meta.DateTimeOriginal || meta.DateTime) document.getElementById('date').value = clean((meta.DateTimeOriginal || meta.DateTime).value);
+                if (meta.Medium) document.getElementById('technique').value = clean(meta.Medium.value);
+                showToast('success', '¡Datos obtenidos!');
+            } catch (err) { console.error(err); showToast('error', 'Error leyendo Wikimedia'); } 
+            finally { btn.innerHTML = originalIcon; btn.disabled = false; }
+        }
+
+        function saveImage(src) {
+            fileSystem.images.push({
+                id: Date.now(), parentId: currentFolderId, src,
+                title: document.getElementById('title').value || "Sin título",
+                author: document.getElementById('author').value || "Desconocido",
+                date: document.getElementById('date').value || "-",
+                technique: document.getElementById('technique').value || "-", 
+                category: "General", location: "", description: ""
+            });
+            render(); document.getElementById('imageForm').reset(); toggleForm(); syncToCloud();
+        }
+        function deleteImage(e, id) {
+            e.stopPropagation();
+            if(!confirm("¿Borrar imagen?")) return;
+            fileSystem.images = fileSystem.images.filter(i => i.id !== id);
+            render(); syncToCloud();
+        }
+
+        // --- SISTEMA FLASHCARDS ---
+        function openStudyConfig() {
+            if(!fileSystem || !fileSystem.folders) { showToast('error', 'Cargando datos...'); return; }
+            const list = document.getElementById('folderSelectionList'); list.innerHTML = "";
+            fileSystem.folders.forEach(f => {
+                list.innerHTML += `<label class="flex gap-2 p-2 hover:bg-gray-700 cursor-pointer"><input type="checkbox" value="${f.id}" checked class="folder-check"> <span>${f.name}</span></label>`;
+            });
+            document.getElementById('studyConfigModal').classList.remove('hidden');
+        }
+        function toggleSelectAllFolders(cb) { document.querySelectorAll('.folder-check').forEach(c => c.checked = cb.checked); }
+        
+        function confirmStudySession() {
+            const ids = Array.from(document.querySelectorAll('.folder-check:checked')).map(c => c.value);
+            const imgs = fileSystem.images.filter(i => ids.includes(i.parentId?.toString()) || (i.parentId===null && ids.includes("root")));
+            const finalImgs = imgs.length > 0 ? imgs : fileSystem.images; // Si no hay match, usa todas (fallback)
+            
+            if(finalImgs.length===0) return alert("No hay imágenes para estudiar");
+            
+            startStudy(finalImgs); 
+            document.getElementById('studyConfigModal').classList.add('hidden');
+        }
+
+        function startStudy(imgs) {
+            studyQueue = [...imgs].sort(() => Math.random() - 0.5);
+            document.getElementById('studyModal').classList.remove('hidden');
+            document.getElementById('studyEndMsg').classList.add('hidden');
+            document.getElementById('studyCardContainer').classList.remove('hidden');
+            document.getElementById('studyCardInner').classList.remove('flipped');
+            loadStudyCard();
+        }
+
+        function loadStudyCard() {
+            if(studyQueue.length === 0) {
+                document.getElementById('studyCardContainer').classList.add('hidden');
+                document.getElementById('studyEndMsg').classList.remove('hidden');
+                return;
+            }
+            const card = studyQueue[0];
+            document.getElementById('studyCardInner').classList.remove('flipped');
+            document.getElementById('studyImgFront').src = card.src;
+            document.getElementById('studyTitle').textContent = card.title;
+            document.getElementById('studyAuthor').textContent = card.author;
+            document.getElementById('studyDate').textContent = card.date;
+            document.getElementById('studyTechnique').textContent = card.technique || "-";
+        }
+
+        function flipCardToBack() {
+            document.getElementById('studyCardInner').classList.add('flipped');
+        }
+
+        function rateCard(isKnown) {
+            const currentCard = studyQueue.shift();
+            if (!isKnown) studyQueue.push(currentCard);
+            document.getElementById('studyCardInner').classList.remove('flipped');
+            setTimeout(() => { loadStudyCard(); }, 300);
+        }
+
+        function endStudySession() { document.getElementById('studyModal').classList.add('hidden'); }
+        function updateZoom(val) { document.getElementById('studyImgFront').style.transform = `scale(${val})`; }
+
+        // --- RENDER ---
+        function render() {
+            const grid = document.getElementById('mainGrid');
+            const emptyState = document.getElementById('emptyState');
+            grid.innerHTML = '';
+            updateBreadcrumbs();
+            updateCurrentFolderLabel();
+            const currentFolders = fileSystem.folders.filter(f => f.parentId === currentFolderId);
+            const currentImages = fileSystem.images.filter(img => img.parentId === currentFolderId);
+            if (currentFolders.length === 0 && currentImages.length === 0) emptyState.classList.remove('hidden');
+            else emptyState.classList.add('hidden');
+
+            currentFolders.forEach(folder => {
+                const div = document.createElement('div');
+                div.className = 'folder-card bg-yellow-50 dark:bg-gray-700 border border-yellow-200 dark:border-gray-600 rounded-xl overflow-hidden shadow-sm flex flex-col aspect-square';
+                div.innerHTML = `
+                    <div onclick="enterFolder(${folder.id})" class="flex-grow flex flex-col items-center justify-center cursor-pointer hover:bg-yellow-100 dark:hover:bg-gray-600 transition p-2 w-full">
+                        <i class="fas fa-folder text-yellow-400 text-5xl mb-2 drop-shadow-sm"></i>
+                        <span class="font-bold text-gray-700 dark:text-gray-200 text-center text-sm truncate w-full px-1">${folder.name}</span>
+                    </div>
+                    <button type="button" onclick="deleteFolder(event, ${folder.id})" class="bg-red-50 dark:bg-gray-800 text-red-400 hover:text-red-600 hover:bg-red-100 dark:hover:bg-gray-600 py-2 border-t border-yellow-200 dark:border-gray-600 transition flex items-center justify-center gap-1 text-xs uppercase font-bold tracking-wide w-full">
+                        <i class="fas fa-trash"></i> Borrar
+                    </button>
+                `;
+                grid.appendChild(div);
+            });
+
+            currentImages.forEach(img => {
+                const div = document.createElement('div');
+                div.className = 'image-card bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden flex flex-col h-full relative';
+                div.innerHTML = `
+                    <div onclick="openLightbox(${img.id})" class="flex-grow flex flex-col cursor-pointer group relative">
+                        <div class="h-32 overflow-hidden bg-gray-100 dark:bg-gray-900 relative w-full">
+                            <img src="${img.src}" loading="lazy" referrerpolicy="no-referrer" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110">
+                        </div>
+                        <div class="p-3 flex-grow bg-white dark:bg-gray-800 group-hover:bg-gray-50 dark:group-hover:bg-gray-750 transition">
+                            <h3 class="font-bold text-sm text-gray-800 dark:text-gray-200 truncate leading-tight mb-1">${img.title}</h3>
+                            <p class="text-xs text-gray-400 truncate">${img.author || ''}</p>
+                        </div>
+                    </div>
+                    <button type="button" onclick="deleteImage(event, ${img.id})" class="bg-gray-50 dark:bg-gray-900 text-gray-400 hover:text-red-500 py-2 border-t border-gray-100 dark:border-gray-700 flex items-center justify-center gap-1 text-xs uppercase font-bold w-full">
+                        <i class="fas fa-trash"></i> Borrar
+                    </button>
+                `;
+                grid.appendChild(div);
+            });
+        }
+
+        function showToast(type, msg) {
+            const toast = document.getElementById('statusToast');
+            toast.className = `status-toast show status-${type}`;
+            toast.innerHTML = type === 'loading' ? `<i class="fas fa-circle-notch fa-spin"></i> ${msg}` : `<i class="fas fa-${type === 'success' ? 'check' : 'times'}"></i> ${msg}`;
+            if(type !== 'loading') { clearTimeout(saveTimeout); saveTimeout = setTimeout(() => toast.classList.remove('show'), 3000); }
+        }
+
+        function enterFolder(id) { currentFolderId = id; render(); }
+        function goHome() { currentFolderId = null; render(); }
+        function updateBreadcrumbs() {
+            const container = document.getElementById('breadcrumbContainer');
+            container.innerHTML = '';
+            if (currentFolderId === null) return;
+            let path = [], curr = fileSystem.folders.find(f => f.id === currentFolderId);
+            while(curr) { path.unshift(curr); curr = fileSystem.folders.find(f => f.id === curr.parentId); }
+            path.forEach(f => container.innerHTML += `<span class="mx-2 text-gray-400">/</span><button type="button" onclick="enterFolder(${f.id})" class="hover:text-blue-500 font-medium">${f.name}</button>`);
+        }
+        function updateCurrentFolderLabel() { document.getElementById('currentFolderLabel').textContent = fileSystem.folders.find(f => f.id === currentFolderId)?.name || "Inicio"; }
+        function createFolder() {
+            const name = document.getElementById('newFolderName').value.trim();
+            if (name) { fileSystem.folders.push({ id: Date.now(), name: name, parentId: currentFolderId }); render(); closeFolderModal(); syncToCloud(); }
+        }
+        function deleteFolder(e, id) {
+            e.stopPropagation(); if(!confirm("¿Borrar carpeta?")) return;
+            const getIds = (fid) => { let ids = [fid]; fileSystem.folders.filter(f => f.parentId === fid).forEach(child => ids = ids.concat(getIds(child.id))); return ids; };
+            const idsToDelete = getIds(id);
+            fileSystem.images = fileSystem.images.filter(img => !idsToDelete.includes(img.parentId));
+            fileSystem.folders = fileSystem.folders.filter(f => !idsToDelete.includes(f.id));
+            render(); syncToCloud();
+        }
+        function openFolderModal() { document.getElementById('newFolderName').value=""; document.getElementById('folderModal').classList.remove('hidden'); }
+        function closeFolderModal() { document.getElementById('folderModal').classList.add('hidden'); }
+        function toggleForm() { document.getElementById('addFormContainer').classList.toggle('hidden'); }
+        function handleFormSubmit(e) { e.preventDefault(); const url = document.getElementById('imgUrl').value; if(url) saveImage(url); }
+        function openLightbox(id) {
+            const img = fileSystem.images.find(i => i.id === id); if(!img) return;
+            document.getElementById('lightboxImg').src = img.src;
+            document.getElementById('lbTitle').textContent = img.title;
+            document.getElementById('lightbox').classList.remove('hidden');
+        }
+        function closeLightbox() { document.getElementById('lightbox').classList.add('hidden'); }
+        function toggleDarkMode() { document.documentElement.classList.toggle('dark'); updateThemeIcon(); }
+        function updateThemeIcon() {
+            const isDark = document.documentElement.classList.contains('dark');
+            document.getElementById('themeIcon').className = isDark ? "fas fa-sun text-yellow-300" : "fas fa-moon text-gray-300";
+        }
+    </script>
+</body>
+</html>
