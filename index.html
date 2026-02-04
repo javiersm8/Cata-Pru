@@ -61,6 +61,19 @@
             overflow-y: auto; padding: 20px;
         }
         #loginScreen.hidden { display: none !important; }
+
+        /* Lightbox Navigation Buttons */
+        .lb-nav-btn {
+            position: absolute; top: 50%; transform: translateY(-50%);
+            background: rgba(0,0,0,0.5); color: white;
+            border: none; padding: 1rem; cursor: pointer;
+            font-size: 2rem; border-radius: 50%;
+            transition: background 0.2s; z-index: 60;
+            width: 60px; height: 60px; display: flex; align-items: center; justify-content: center;
+        }
+        .lb-nav-btn:hover { background: rgba(255,255,255,0.2); }
+        .lb-prev { left: 20px; }
+        .lb-next { right: 20px; }
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-100 h-screen flex flex-col transition-colors duration-300">
@@ -161,7 +174,15 @@
             <div id="addFormContainer" class="hidden mb-8 bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 fade-in">
                 <div class="flex justify-between items-center mb-4">
                     <h2 class="text-lg font-semibold text-gray-700 dark:text-gray-200">Nueva Imagen en: <span id="currentFolderLabel" class="text-blue-600 dark:text-blue-400 font-bold">Inicio</span></h2>
-                    <button type="button" onclick="toggleForm()" class="text-gray-400 hover:text-red-500"><i class="fas fa-times"></i></button>
+                    <div class="flex items-center gap-3">
+                        <div class="relative">
+                            <input type="file" id="csvInput" accept=".csv" class="hidden" onchange="handleCSVUpload(event)">
+                            <button type="button" onclick="document.getElementById('csvInput').click()" class="text-sm bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-3 py-1 rounded border border-green-200 dark:border-green-800 hover:bg-green-200 transition flex items-center gap-2">
+                                <i class="fas fa-file-csv"></i> Importar CSV
+                            </button>
+                        </div>
+                        <button type="button" onclick="toggleForm()" class="text-gray-400 hover:text-red-500"><i class="fas fa-times"></i></button>
+                    </div>
                 </div>
 
                 <form id="imageForm" onsubmit="handleFormSubmit(event)" class="space-y-4">
@@ -187,9 +208,12 @@
                         <textarea id="description"></textarea>
                     </div>
 
-                    <div class="flex justify-end gap-2 pt-2">
-                        <button type="button" onclick="toggleForm()" class="px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded">Cancelar</button>
-                        <button type="submit" class="px-6 py-2 bg-green-600 hover:bg-green-500 text-white rounded shadow transition">Guardar</button>
+                    <div class="flex justify-between items-center pt-2">
+                        <p class="text-xs text-gray-400">CSV orden: Título, Autor, Fecha, Estilo (Categ), Técnica, URL</p>
+                        <div class="flex gap-2">
+                            <button type="button" onclick="toggleForm()" class="px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded">Cancelar</button>
+                            <button type="submit" class="px-6 py-2 bg-green-600 hover:bg-green-500 text-white rounded shadow transition">Guardar</button>
+                        </div>
                     </div>
                 </form>
             </div>
@@ -287,11 +311,16 @@
         </div>
     </div>
 
-    <div id="lightbox" class="fixed inset-0 z-50 bg-black bg-opacity-95 hidden flex justify-center items-center" onclick="closeLightbox()">
-        <button class="absolute top-4 right-4 text-white text-4xl">&times;</button>
-        <div class="relative w-full h-full flex flex-col justify-center items-center p-4">
-            <img id="lightboxImg" src="" class="max-h-[80vh] max-w-full object-contain rounded border border-gray-700" referrerpolicy="no-referrer">
-            <h2 id="lbTitle" class="text-xl font-bold text-white mt-4"></h2>
+    <div id="lightbox" class="fixed inset-0 z-50 bg-black bg-opacity-95 hidden flex justify-center items-center" onclick="closeLightbox(event)">
+        <button onclick="closeLightboxForce()" class="absolute top-4 right-4 text-white text-4xl z-50 hover:text-gray-300 transition">&times;</button>
+        
+        <button class="lb-nav-btn lb-prev" onclick="changeLightboxImage(event, -1)"><i class="fas fa-chevron-left"></i></button>
+        <button class="lb-nav-btn lb-next" onclick="changeLightboxImage(event, 1)"><i class="fas fa-chevron-right"></i></button>
+
+        <div class="relative w-full h-full flex flex-col justify-center items-center p-4 pointer-events-none">
+            <img id="lightboxImg" src="" class="max-h-[80vh] max-w-full object-contain rounded border border-gray-700 pointer-events-auto" referrerpolicy="no-referrer">
+            <h2 id="lbTitle" class="text-xl font-bold text-white mt-4 pointer-events-auto text-center px-4"></h2>
+            <p id="lbMeta" class="text-gray-400 text-sm mt-1 pointer-events-auto"></p>
         </div>
     </div>
 
@@ -316,14 +345,16 @@
         let fileSystem = { folders: [], images: [] };
         let studyQueue = [];
         let saveTimeout;
-        let authMode = 'login'; // login | register
+        let authMode = 'login';
+        
+        // Estado para Lightbox
+        let currentLightboxIndex = -1;
+        let currentFolderImages = [];
 
         const inputClass = "w-full p-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:border-blue-500 dark:bg-gray-700 dark:text-white";
         document.querySelectorAll('.input-std').forEach(el => el.className = inputClass);
 
-        // --- AUTH LOGIC ACTUALIZADA ---
-        
-        // 1. Alternar entre Login y Registro
+        // --- AUTH LOGIC ---
         function switchAuthMode(mode) {
             authMode = mode;
             const tabLogin = document.getElementById('tabLogin');
@@ -331,8 +362,7 @@
             const btn = document.getElementById('submitAuthBtn');
             const nameField = document.getElementById('nameField');
             const errorMsg = document.getElementById('authErrorMsg');
-
-            errorMsg.classList.add('hidden'); // Limpiar errores
+            errorMsg.classList.add('hidden');
 
             if (mode === 'login') {
                 tabLogin.className = "flex-1 pb-2 font-semibold text-blue-600 border-b-2 border-blue-600 transition-colors";
@@ -347,7 +377,6 @@
             }
         }
 
-        // 2. Manejar Formulario de Correo
         async function handleEmailAuth(e) {
             e.preventDefault();
             const email = document.getElementById('authEmail').value;
@@ -362,20 +391,15 @@
 
             try {
                 if (authMode === 'register') {
-                    // Registro
                     const userCredential = await auth.createUserWithEmailAndPassword(email, password);
-                    // Si se proporcionó nombre, actualizar perfil
                     if (name) {
                         await userCredential.user.updateProfile({ displayName: name });
-                        // Forzar refresco visual
                         document.getElementById('userName').textContent = name;
                         document.getElementById('defaultAvatar').textContent = name.charAt(0).toUpperCase();
                     }
                 } else {
-                    // Login
                     await auth.signInWithEmailAndPassword(email, password);
                 }
-                // El authStateChanged se encarga del resto
             } catch (error) {
                 console.error(error);
                 let msg = "Error desconocido.";
@@ -384,7 +408,6 @@
                 else if (error.code === 'auth/email-already-in-use') msg = "Este correo ya está registrado.";
                 else if (error.code === 'auth/weak-password') msg = "La contraseña es muy débil (min 6 caracteres).";
                 else if (error.code === 'auth/invalid-email') msg = "El formato del correo no es válido.";
-                
                 errorMsg.textContent = msg;
                 errorMsg.classList.remove('hidden');
                 btn.disabled = false;
@@ -392,14 +415,9 @@
             }
         }
 
-        // 3. Login con Google (Cambiado a Popup para evitar errores de redirect)
         async function loginWithGoogle() { 
-            try {
-                await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
-            } catch (error) {
-                console.error("Error Google:", error);
-                alert("Error al iniciar con Google: " + error.message);
-            }
+            try { await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()); } 
+            catch (error) { console.error("Error Google:", error); alert("Error al iniciar con Google: " + error.message); }
         }
 
         function logout() { auth.signOut(); window.location.reload(); }
@@ -412,10 +430,8 @@
                 loginScreen.classList.add('hidden'); 
                 appInterface.classList.remove('hidden');
                 
-                // Lógica de Avatar / Nombre
                 const displayName = user.displayName || user.email.split('@')[0];
                 document.getElementById('userName').textContent = displayName;
-                
                 if(user.photoURL) {
                     document.getElementById('userAvatar').src = user.photoURL;
                     document.getElementById('userAvatar').classList.remove('hidden');
@@ -426,7 +442,6 @@
                     defAvatar.classList.remove('hidden');
                     defAvatar.textContent = displayName.charAt(0).toUpperCase();
                 }
-
                 initApp();
             } else {
                 loginScreen.classList.remove('hidden');
@@ -448,18 +463,13 @@
                     await docRef.set(fileSystem);
                 }
                 render();
-            } catch (error) {
-                console.error(error);
-                showToast('error', 'Error de conexión');
-            }
+            } catch (error) { console.error(error); showToast('error', 'Error de conexión'); }
         }
         async function syncToCloud() {
             if (!currentUser) return;
             showToast('loading', 'Guardando...');
-            try {
-                await db.collection('usuarios').doc(currentUser.uid).set(fileSystem);
-                showToast('success', 'Guardado');
-            } catch (error) { showToast('error', 'No se pudo guardar'); }
+            try { await db.collection('usuarios').doc(currentUser.uid).set(fileSystem); showToast('success', 'Guardado'); } 
+            catch (error) { showToast('error', 'No se pudo guardar'); }
         }
         function initApp() {
             if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
@@ -467,7 +477,81 @@
             }
             updateThemeIcon();
             loadCloudData(); 
+            
+            // Event listener global para teclado
+            document.addEventListener('keydown', (e) => {
+                if(!document.getElementById('lightbox').classList.contains('hidden')) {
+                    if(e.key === "ArrowLeft") changeLightboxImage(null, -1);
+                    if(e.key === "ArrowRight") changeLightboxImage(null, 1);
+                    if(e.key === "Escape") closeLightboxForce();
+                }
+            });
         }
+
+        // --- CSV IMPORT FUNCTIONALITY ---
+        function handleCSVUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const text = e.target.result;
+                processCSVData(text);
+                document.getElementById('csvInput').value = ''; // Reset input
+            };
+            reader.readAsText(file);
+        }
+
+        function processCSVData(text) {
+            // Normalizar saltos de línea y filtrar líneas vacías
+            const lines = text.split(/\r?\n/).filter(line => line.trim() !== "");
+            
+            if(lines.length < 1) return showToast('error', 'Archivo vacío');
+
+            // Detectar separador (coma o punto y coma)
+            const firstLine = lines[0];
+            const separator = firstLine.includes(';') ? ';' : ',';
+
+            let count = 0;
+            
+            lines.forEach(line => {
+                // Parseo simple asumiendo que no hay comas/puntos y coma dentro de las celdas
+                // Para algo más robusto, se necesitaría un parser completo, pero esto cubre el 90% de casos
+                const cols = line.split(separator).map(c => c.trim());
+                
+                // Estructura esperada:
+                // 0: Título, 1: Autor, 2: Fecha, 3: Estilo (Cat), 4: Técnica, 5: URL
+                
+                const url = cols[5] || "";
+                
+                // Solo añadir si hay URL válida (básica validación)
+                if (url && url.length > 5) {
+                    fileSystem.images.push({
+                        id: Date.now() + Math.random(), // Random para evitar colisiones en bucle rápido
+                        parentId: currentFolderId,
+                        src: url,
+                        title: cols[0] || "Sin título",
+                        author: cols[1] || "Desconocido",
+                        date: cols[2] || "-",
+                        category: cols[3] || "General", // Estilo se guarda en Category
+                        technique: cols[4] || "-",
+                        location: "",
+                        description: ""
+                    });
+                    count++;
+                }
+            });
+
+            if (count > 0) {
+                showToast('success', `${count} imágenes importadas`);
+                render();
+                toggleForm();
+                syncToCloud();
+            } else {
+                showToast('error', 'No se encontraron filas válidas con URL');
+            }
+        }
+
 
         // --- LOGICA IMAGENES ---
         async function autoFillWikimedia() {
@@ -545,10 +629,8 @@
         function confirmStudySession() {
             const ids = Array.from(document.querySelectorAll('.folder-check:checked')).map(c => c.value);
             const imgs = fileSystem.images.filter(i => ids.includes(i.parentId?.toString()) || (i.parentId===null && ids.includes("root")));
-            const finalImgs = imgs.length > 0 ? imgs : fileSystem.images; // Si no hay match, usa todas (fallback)
-            
+            const finalImgs = imgs.length > 0 ? imgs : fileSystem.images; // Fallback
             if(finalImgs.length===0) return alert("No hay imágenes para estudiar");
-            
             startStudy(finalImgs); 
             document.getElementById('studyConfigModal').classList.add('hidden');
         }
@@ -576,18 +658,13 @@
             document.getElementById('studyDate').textContent = card.date;
             document.getElementById('studyTechnique').textContent = card.technique || "-";
         }
-
-        function flipCardToBack() {
-            document.getElementById('studyCardInner').classList.add('flipped');
-        }
-
+        function flipCardToBack() { document.getElementById('studyCardInner').classList.add('flipped'); }
         function rateCard(isKnown) {
             const currentCard = studyQueue.shift();
             if (!isKnown) studyQueue.push(currentCard);
             document.getElementById('studyCardInner').classList.remove('flipped');
             setTimeout(() => { loadStudyCard(); }, 300);
         }
-
         function endStudySession() { document.getElementById('studyModal').classList.add('hidden'); }
         function updateZoom(val) { document.getElementById('studyImgFront').style.transform = `scale(${val})`; }
 
@@ -673,13 +750,50 @@
         function closeFolderModal() { document.getElementById('folderModal').classList.add('hidden'); }
         function toggleForm() { document.getElementById('addFormContainer').classList.toggle('hidden'); }
         function handleFormSubmit(e) { e.preventDefault(); const url = document.getElementById('imgUrl').value; if(url) saveImage(url); }
+        
+        // --- UPDATED LIGHTBOX ---
         function openLightbox(id) {
-            const img = fileSystem.images.find(i => i.id === id); if(!img) return;
-            document.getElementById('lightboxImg').src = img.src;
-            document.getElementById('lbTitle').textContent = img.title;
+            // Filtrar imágenes de la vista actual para la navegación
+            currentFolderImages = fileSystem.images.filter(img => img.parentId === currentFolderId);
+            currentLightboxIndex = currentFolderImages.findIndex(i => i.id === id);
+            
+            updateLightboxContent();
             document.getElementById('lightbox').classList.remove('hidden');
         }
-        function closeLightbox() { document.getElementById('lightbox').classList.add('hidden'); }
+
+        function changeLightboxImage(e, direction) {
+            if(e) e.stopPropagation(); // Evitar que el clic en la flecha cierre el modal
+            if(currentLightboxIndex === -1 || currentFolderImages.length === 0) return;
+
+            let newIndex = currentLightboxIndex + direction;
+            
+            // Loop (carrusel infinito)
+            if (newIndex < 0) newIndex = currentFolderImages.length - 1;
+            if (newIndex >= currentFolderImages.length) newIndex = 0;
+
+            currentLightboxIndex = newIndex;
+            updateLightboxContent();
+        }
+
+        function updateLightboxContent() {
+            if(currentLightboxIndex === -1) return;
+            const img = currentFolderImages[currentLightboxIndex];
+            
+            document.getElementById('lightboxImg').src = img.src;
+            document.getElementById('lbTitle').textContent = img.title;
+            // Mostrar info extra
+            const meta = [img.author, img.date].filter(Boolean).join(' | ');
+            document.getElementById('lbMeta').textContent = meta;
+        }
+
+        function closeLightbox(e) { 
+            // Cierra solo si se hace clic en el fondo negro, no en la imagen
+            if(e.target.id === 'lightbox') {
+                document.getElementById('lightbox').classList.add('hidden'); 
+            }
+        }
+        function closeLightboxForce() { document.getElementById('lightbox').classList.add('hidden'); }
+        
         function toggleDarkMode() { document.documentElement.classList.toggle('dark'); updateThemeIcon(); }
         function updateThemeIcon() {
             const isDark = document.documentElement.classList.contains('dark');
