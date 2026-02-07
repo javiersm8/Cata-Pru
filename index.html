@@ -210,7 +210,8 @@
                         <input type="text" id="title" placeholder="Título de la obra" class="input-std">
                         <input type="text" id="author" placeholder="Autor" class="input-std">
                         <input type="text" id="date" placeholder="Fecha" class="input-std">
-                        <input type="text" id="styleInput" placeholder="Estilo / Categoría" class="input-std"> </div>
+                        <input type="text" id="styleInput" placeholder="Estilo / Categoría" class="input-std">
+                    </div>
                     
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <input type="text" id="technique" placeholder="Técnica y Soporte (ej: Óleo sobre lienzo)" class="input-std col-span-2">
@@ -329,6 +330,10 @@
                             <div class="border-b border-gray-300 dark:border-gray-600 pb-2">
                                 <span class="text-xs text-gray-400 uppercase font-bold tracking-wider">Fecha</span>
                                 <p id="studyDate" class="text-lg text-gray-800 dark:text-white mt-1"></p>
+                            </div>
+                            <div class="border-b border-gray-300 dark:border-gray-600 pb-2">
+                                <span class="text-xs text-gray-400 uppercase font-bold tracking-wider">Estilo</span>
+                                <p id="studyStyle" class="text-lg text-indigo-600 dark:text-indigo-400 font-medium mt-1"></p>
                             </div>
                             <div>
                                 <span class="text-xs text-gray-400 uppercase font-bold tracking-wider">Técnica / Soporte</span>
@@ -608,7 +613,6 @@
                 if (meta.Artist) document.getElementById('author').value = clean(meta.Artist.value);
                 if (meta.DateTimeOriginal || meta.DateTime) document.getElementById('date').value = clean((meta.DateTimeOriginal || meta.DateTime).value);
                 if (meta.Medium) document.getElementById('technique').value = clean(meta.Medium.value);
-                // No hay campo "Estilo" en meta de wikimedia usualmente de forma directa, se deja en blanco
                 showToast('success', '¡Datos obtenidos!');
             } catch (err) { console.error(err); showToast('error', 'Error leyendo Wikimedia'); } 
             finally { btn.innerHTML = originalIcon; btn.disabled = false; }
@@ -628,7 +632,7 @@
 
         function editImage(e, id) {
             e.stopPropagation();
-            if(isSelectionMode) return; // No editar en modo selección
+            if(isSelectionMode) return;
             const img = fileSystem.images.find(i => i.id === id);
             if(!img) return;
 
@@ -637,7 +641,7 @@
             document.getElementById('author').value = img.author;
             document.getElementById('date').value = img.date;
             document.getElementById('technique').value = img.technique;
-            document.getElementById('styleInput').value = img.category; // Cargar estilo
+            document.getElementById('styleInput').value = img.category; 
             
             editingImageId = id;
             document.getElementById('formTitle').textContent = "Editar Imagen";
@@ -665,7 +669,7 @@
                 author: document.getElementById('author').value || "Desconocido",
                 date: document.getElementById('date').value || "-",
                 technique: document.getElementById('technique').value || "-",
-                category: document.getElementById('styleInput').value || "General" // Guardar Estilo
+                category: document.getElementById('styleInput').value || "General" 
             };
 
             if (editingImageId) {
@@ -749,7 +753,7 @@
 
             // Listar carpetas
             fileSystem.folders.forEach(f => {
-                if(f.id !== currentFolderId) { // No mostrar carpeta actual (opcional)
+                if(f.id !== currentFolderId) { 
                    list.innerHTML += `
                     <div onclick="moveSelectedTo(${f.id})" class="p-3 border-b hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer dark:text-white flex items-center gap-2">
                         <i class="fas fa-folder text-yellow-500"></i> ${f.name}
@@ -809,6 +813,8 @@
             document.getElementById('studyTitle').textContent = card.title;
             document.getElementById('studyAuthor').textContent = card.author;
             document.getElementById('studyDate').textContent = card.date;
+            // ACTUALIZADO: Rellenar campo Estilo
+            document.getElementById('studyStyle').textContent = card.category || "-";
             document.getElementById('studyTechnique').textContent = card.technique || "-";
         }
         function flipCardToBack() { document.getElementById('studyCardInner').classList.add('flipped'); }
@@ -881,7 +887,6 @@
             });
         }
 
-        // Nueva función para manejar el clic en imagen según el modo
         function handleImageClick(id) {
             if(isSelectionMode) {
                 toggleItemSelection(id);
@@ -947,8 +952,11 @@
             const img = currentFolderImages[currentLightboxIndex];
             document.getElementById('lightboxImg').src = img.src;
             document.getElementById('lbTitle').textContent = img.title;
-            const meta = [img.author, img.date].filter(Boolean).join(' | ');
-            document.getElementById('lbMeta').textContent = meta;
+            
+            // ACTUALIZADO: Mostrar Autor | Fecha | Estilo (Categoría)
+            const metaParts = [img.author, img.date];
+            if(img.category && img.category !== 'General') metaParts.push(img.category);
+            document.getElementById('lbMeta').textContent = metaParts.filter(Boolean).join(' | ');
         }
 
         function closeLightbox(e) { if(e.target.id === 'lightbox') document.getElementById('lightbox').classList.add('hidden'); }
