@@ -24,6 +24,11 @@
         .fade-in { animation: fadeIn 0.3s ease-in-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         
+        /* Selección Múltiple */
+        .image-card.selected { ring: 4px solid #3b82f6; transform: scale(0.95); }
+        .check-overlay { display: none; }
+        .image-card.selected .check-overlay { display: flex; }
+
         /* --- MOTOR DE FLASHCARDS 3D --- */
         .scene { perspective: 1000px; width: 100%; height: 100%; }
         .card-3d { width: 100%; height: 100%; position: relative; transition: transform 0.6s; transform-style: preserve-3d; }
@@ -37,7 +42,6 @@
         .card-front { background: #000; z-index: 2; transform: rotateY(0deg); }
         .card-back { background: white; transform: rotateY(180deg); z-index: 1; }
         .dark .card-back { background: #1f2937; }
-        
         .zoom-container { overflow: auto; display: flex; align-items: center; justify-content: center; height: 100%; width: 100%; }
 
         .status-toast { 
@@ -149,6 +153,11 @@
                     <button type="button" onclick="toggleDarkMode()" class="p-2 rounded-full hover:bg-white/10 transition" title="Cambiar Tema">
                         <i id="themeIcon" class="fas fa-moon"></i>
                     </button>
+                    
+                    <button type="button" id="selectModeBtn" onclick="toggleSelectionMode()" class="bg-gray-600 hover:bg-gray-500 text-white px-3 py-2 rounded-lg transition shadow text-sm flex items-center gap-2" title="Selección Múltiple">
+                        <i class="fas fa-check-square"></i> <span class="hidden sm:inline">Seleccionar</span>
+                    </button>
+
                     <button type="button" onclick="openStudyConfig()" class="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-lg transition shadow flex items-center gap-2 font-medium">
                         <i class="fas fa-brain"></i> <span class="hidden sm:inline">Aprender</span>
                     </button>
@@ -199,19 +208,21 @@
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <input type="text" id="title" placeholder="Título de la obra" class="input-std">
-                        <input type="text" id="technique" placeholder="Técnica y Soporte (ej: Óleo sobre lienzo)" class="input-std">
                         <input type="text" id="author" placeholder="Autor" class="input-std">
                         <input type="text" id="date" placeholder="Fecha" class="input-std">
+                        <input type="text" id="styleInput" placeholder="Estilo / Categoría" class="input-std"> </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <input type="text" id="technique" placeholder="Técnica y Soporte (ej: Óleo sobre lienzo)" class="input-std col-span-2">
                     </div>
                     
                     <div class="hidden">
-                        <select id="category" class="input-std"><option value="General">General</option></select>
-                        <input type="text" id="location">
-                        <textarea id="description"></textarea>
+                         <input type="text" id="location">
+                         <textarea id="description"></textarea>
                     </div>
 
                     <div class="flex justify-between items-center pt-2">
-                        <p class="text-xs text-gray-400" id="csvHint">CSV orden: Título, Autor, Fecha, Estilo (Categ), Técnica, URL</p>
+                        <p class="text-xs text-gray-400" id="csvHint">CSV orden exacto: Título, Autor, Fecha, Estilo, Técnica, URL</p>
                         <div class="flex gap-2">
                             <button type="button" onclick="closeForm()" class="px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded">Cancelar</button>
                             <button type="submit" id="formSubmitBtn" class="px-6 py-2 bg-green-600 hover:bg-green-500 text-white rounded shadow transition">Guardar</button>
@@ -226,6 +237,23 @@
                 <p>Carpeta vacía.</p>
             </div>
         </div>
+
+        <div id="selectionBar" class="fixed bottom-0 left-0 right-0 bg-gray-900 text-white p-4 z-50 transform translate-y-full transition-transform duration-300 flex justify-between items-center shadow-lg">
+            <div class="font-bold pl-4">
+                <span id="selectedCount">0</span> seleccionados
+            </div>
+            <div class="flex gap-4 pr-4">
+                <button onclick="openMoveModal()" class="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded font-bold transition">
+                    <i class="fas fa-folder-open"></i> Mover a...
+                </button>
+                <button onclick="deleteSelected()" class="bg-red-600 hover:bg-red-500 px-4 py-2 rounded font-bold transition">
+                    <i class="fas fa-trash"></i> Borrar
+                </button>
+                <button onclick="toggleSelectionMode()" class="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded transition">
+                    Cancelar
+                </button>
+            </div>
+        </div>
     </div>
 
     <div id="folderModal" class="fixed inset-0 z-50 bg-black bg-opacity-50 hidden flex justify-center items-center backdrop-blur-sm">
@@ -235,6 +263,17 @@
             <div class="flex justify-end gap-2">
                 <button type="button" onclick="closeFolderModal()" class="px-3 py-1 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded">Cancelar</button>
                 <button type="button" onclick="createFolder()" class="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-500">Crear</button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="moveModal" class="fixed inset-0 z-50 bg-black bg-opacity-80 hidden flex justify-center items-center backdrop-blur-sm">
+        <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-2xl w-80 fade-in">
+            <h3 class="text-lg font-bold mb-4 dark:text-white">Mover a...</h3>
+            <div id="moveFolderList" class="max-h-60 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded mb-4">
+                </div>
+            <div class="flex justify-end gap-2">
+                <button type="button" onclick="document.getElementById('moveModal').classList.add('hidden')" class="px-3 py-1 text-gray-500">Cancelar</button>
             </div>
         </div>
     </div>
@@ -349,10 +388,12 @@
         let saveTimeout;
         let authMode = 'login';
         
-        // Estado para Lightbox y Edición
+        // Estado para Lightbox, Edición y Selección
         let currentLightboxIndex = -1;
         let currentFolderImages = [];
         let editingImageId = null;
+        let isSelectionMode = false;
+        let selectedItems = new Set(); // Stores IDs
 
         const inputClass = "w-full p-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:border-blue-500 dark:bg-gray-700 dark:text-white";
         document.querySelectorAll('.input-std').forEach(el => el.className = inputClass);
@@ -481,7 +522,6 @@
             updateThemeIcon();
             loadCloudData(); 
             
-            // Event listener global para teclado
             document.addEventListener('keydown', (e) => {
                 if(!document.getElementById('lightbox').classList.contains('hidden')) {
                     if(e.key === "ArrowLeft") changeLightboxImage(null, -1);
@@ -508,6 +548,7 @@
             let count = 0;
             lines.forEach(line => {
                 const cols = line.split(separator).map(c => c.trim());
+                // Orden Estricto: 0:Titulo, 1:Autor, 2:Fecha, 3:Estilo(Categ), 4:Técnica, 5:URL
                 const url = cols[5] || "";
                 if (url && url.length > 5) {
                     fileSystem.images.push({
@@ -567,42 +608,41 @@
                 if (meta.Artist) document.getElementById('author').value = clean(meta.Artist.value);
                 if (meta.DateTimeOriginal || meta.DateTime) document.getElementById('date').value = clean((meta.DateTimeOriginal || meta.DateTime).value);
                 if (meta.Medium) document.getElementById('technique').value = clean(meta.Medium.value);
+                // No hay campo "Estilo" en meta de wikimedia usualmente de forma directa, se deja en blanco
                 showToast('success', '¡Datos obtenidos!');
             } catch (err) { console.error(err); showToast('error', 'Error leyendo Wikimedia'); } 
             finally { btn.innerHTML = originalIcon; btn.disabled = false; }
         }
 
-        // Abre el formulario en modo "Crear Nueva"
         function openFormForNew() {
             editingImageId = null;
             document.getElementById('imageForm').reset();
             document.getElementById('formTitle').textContent = "Nueva Imagen";
             document.getElementById('formSubmitBtn').textContent = "Guardar";
-            document.getElementById('csvButtonContainer').classList.remove('hidden'); // Mostrar botón CSV
+            document.getElementById('csvButtonContainer').classList.remove('hidden');
             document.getElementById('csvHint').classList.remove('hidden');
             
             document.getElementById('addFormContainer').classList.remove('hidden');
             document.getElementById('mainContainer').scrollTo(0, 0);
         }
 
-        // Abre el formulario en modo "Editar"
         function editImage(e, id) {
             e.stopPropagation();
+            if(isSelectionMode) return; // No editar en modo selección
             const img = fileSystem.images.find(i => i.id === id);
             if(!img) return;
 
-            // Rellenar datos
             document.getElementById('imgUrl').value = img.src;
             document.getElementById('title').value = img.title;
             document.getElementById('author').value = img.author;
             document.getElementById('date').value = img.date;
             document.getElementById('technique').value = img.technique;
+            document.getElementById('styleInput').value = img.category; // Cargar estilo
             
-            // Configurar estado
             editingImageId = id;
             document.getElementById('formTitle').textContent = "Editar Imagen";
             document.getElementById('formSubmitBtn').textContent = "Actualizar";
-            document.getElementById('csvButtonContainer').classList.add('hidden'); // Ocultar CSV al editar
+            document.getElementById('csvButtonContainer').classList.add('hidden');
             document.getElementById('csvHint').classList.add('hidden');
 
             document.getElementById('addFormContainer').classList.remove('hidden');
@@ -620,26 +660,26 @@
             const url = document.getElementById('imgUrl').value;
             if(!url) return;
 
+            const newData = {
+                title: document.getElementById('title').value || "Sin título",
+                author: document.getElementById('author').value || "Desconocido",
+                date: document.getElementById('date').value || "-",
+                technique: document.getElementById('technique').value || "-",
+                category: document.getElementById('styleInput').value || "General" // Guardar Estilo
+            };
+
             if (editingImageId) {
-                // MODO EDICIÓN
                 const img = fileSystem.images.find(i => i.id === editingImageId);
                 if(img) {
                     img.src = url;
-                    img.title = document.getElementById('title').value || "Sin título";
-                    img.author = document.getElementById('author').value || "Desconocido";
-                    img.date = document.getElementById('date').value || "-";
-                    img.technique = document.getElementById('technique').value || "-";
+                    Object.assign(img, newData);
                 }
                 showToast('success', 'Imagen actualizada');
             } else {
-                // MODO CREACIÓN
                 fileSystem.images.push({
                     id: Date.now(), parentId: currentFolderId, src: url,
-                    title: document.getElementById('title').value || "Sin título",
-                    author: document.getElementById('author').value || "Desconocido",
-                    date: document.getElementById('date').value || "-",
-                    technique: document.getElementById('technique').value || "-", 
-                    category: "General", location: "", description: ""
+                    ...newData,
+                    location: "", description: ""
                 });
                 showToast('success', 'Imagen creada');
             }
@@ -651,9 +691,84 @@
 
         function deleteImage(e, id) {
             e.stopPropagation();
+            if(isSelectionMode) return;
             if(!confirm("¿Borrar imagen?")) return;
             fileSystem.images = fileSystem.images.filter(i => i.id !== id);
             render(); syncToCloud();
+        }
+
+        // --- MULTI SELECTION LOGIC ---
+        function toggleSelectionMode() {
+            isSelectionMode = !isSelectionMode;
+            selectedItems.clear();
+            const bar = document.getElementById('selectionBar');
+            const btn = document.getElementById('selectModeBtn');
+            
+            if(isSelectionMode) {
+                bar.classList.remove('translate-y-full');
+                btn.classList.add('bg-blue-600');
+                btn.classList.remove('bg-gray-600');
+            } else {
+                bar.classList.add('translate-y-full');
+                btn.classList.remove('bg-blue-600');
+                btn.classList.add('bg-gray-600');
+            }
+            render();
+            updateSelectionCount();
+        }
+
+        function toggleItemSelection(id) {
+            if(selectedItems.has(id)) selectedItems.delete(id);
+            else selectedItems.add(id);
+            render(); // Re-render to show selection border
+            updateSelectionCount();
+        }
+
+        function updateSelectionCount() {
+            document.getElementById('selectedCount').textContent = selectedItems.size;
+        }
+
+        function deleteSelected() {
+            if(selectedItems.size === 0) return;
+            if(!confirm(`¿Borrar ${selectedItems.size} imágenes?`)) return;
+            fileSystem.images = fileSystem.images.filter(i => !selectedItems.has(i.id));
+            toggleSelectionMode(); // Salir modo selección
+            syncToCloud();
+        }
+
+        function openMoveModal() {
+            if(selectedItems.size === 0) return;
+            const list = document.getElementById('moveFolderList');
+            list.innerHTML = '';
+            
+            // Opción Carpeta Raíz
+            list.innerHTML += `
+                <div onclick="moveSelectedTo(null)" class="p-3 border-b hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer dark:text-white flex items-center gap-2">
+                    <i class="fas fa-home text-blue-500"></i> Inicio (Raíz)
+                </div>`;
+
+            // Listar carpetas
+            fileSystem.folders.forEach(f => {
+                if(f.id !== currentFolderId) { // No mostrar carpeta actual (opcional)
+                   list.innerHTML += `
+                    <div onclick="moveSelectedTo(${f.id})" class="p-3 border-b hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer dark:text-white flex items-center gap-2">
+                        <i class="fas fa-folder text-yellow-500"></i> ${f.name}
+                    </div>`; 
+                }
+            });
+            document.getElementById('moveModal').classList.remove('hidden');
+        }
+
+        function moveSelectedTo(targetFolderId) {
+            fileSystem.images.forEach(img => {
+                if(selectedItems.has(img.id)) {
+                    img.parentId = targetFolderId;
+                }
+            });
+            document.getElementById('moveModal').classList.add('hidden');
+            toggleSelectionMode();
+            syncToCloud();
+            showToast('success', 'Imágenes movidas');
         }
 
         // --- SISTEMA FLASHCARDS ---
@@ -666,16 +781,14 @@
             document.getElementById('studyConfigModal').classList.remove('hidden');
         }
         function toggleSelectAllFolders(cb) { document.querySelectorAll('.folder-check').forEach(c => c.checked = cb.checked); }
-        
         function confirmStudySession() {
             const ids = Array.from(document.querySelectorAll('.folder-check:checked')).map(c => c.value);
             const imgs = fileSystem.images.filter(i => ids.includes(i.parentId?.toString()) || (i.parentId===null && ids.includes("root")));
-            const finalImgs = imgs.length > 0 ? imgs : fileSystem.images; // Fallback
+            const finalImgs = imgs.length > 0 ? imgs : fileSystem.images; 
             if(finalImgs.length===0) return alert("No hay imágenes para estudiar");
             startStudy(finalImgs); 
             document.getElementById('studyConfigModal').classList.add('hidden');
         }
-
         function startStudy(imgs) {
             studyQueue = [...imgs].sort(() => Math.random() - 0.5);
             document.getElementById('studyModal').classList.remove('hidden');
@@ -684,7 +797,6 @@
             document.getElementById('studyCardInner').classList.remove('flipped');
             loadStudyCard();
         }
-
         function loadStudyCard() {
             if(studyQueue.length === 0) {
                 document.getElementById('studyCardContainer').classList.add('hidden');
@@ -737,10 +849,17 @@
             });
 
             currentImages.forEach(img => {
+                const isSelected = selectedItems.has(img.id);
                 const div = document.createElement('div');
-                div.className = 'image-card bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden flex flex-col h-full relative';
+                // Añadimos clase 'selected' si corresponde
+                div.className = `image-card bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden flex flex-col h-full relative transition-all duration-200 ${isSelected ? 'selected' : ''}`;
+                
                 div.innerHTML = `
-                    <div onclick="openLightbox(${img.id})" class="flex-grow flex flex-col cursor-pointer group relative">
+                    <div onclick="handleImageClick(${img.id})" class="flex-grow flex flex-col cursor-pointer group relative">
+                         <div class="check-overlay absolute inset-0 bg-blue-500/20 z-10 flex items-center justify-center pointer-events-none">
+                            <i class="fas fa-check-circle text-white text-4xl drop-shadow-lg"></i>
+                        </div>
+
                         <div class="h-32 overflow-hidden bg-gray-100 dark:bg-gray-900 relative w-full">
                             <img src="${img.src}" loading="lazy" referrerpolicy="no-referrer" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110">
                         </div>
@@ -750,16 +869,25 @@
                         </div>
                     </div>
                     <div class="flex border-t border-gray-100 dark:border-gray-700">
-                        <button type="button" onclick="editImage(event, ${img.id})" class="flex-1 bg-gray-50 dark:bg-gray-900 text-blue-500 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-gray-800 py-2 border-r border-gray-100 dark:border-gray-700 flex items-center justify-center gap-1 text-xs uppercase font-bold transition">
+                        <button type="button" onclick="editImage(event, ${img.id})" class="flex-1 bg-gray-50 dark:bg-gray-900 text-blue-500 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-gray-800 py-2 border-r border-gray-100 dark:border-gray-700 flex items-center justify-center gap-1 text-xs uppercase font-bold transition ${isSelectionMode ? 'opacity-30 pointer-events-none':''}">
                             <i class="fas fa-edit"></i>
                         </button>
-                        <button type="button" onclick="deleteImage(event, ${img.id})" class="flex-1 bg-gray-50 dark:bg-gray-900 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-gray-800 py-2 flex items-center justify-center gap-1 text-xs uppercase font-bold transition">
+                        <button type="button" onclick="deleteImage(event, ${img.id})" class="flex-1 bg-gray-50 dark:bg-gray-900 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-gray-800 py-2 flex items-center justify-center gap-1 text-xs uppercase font-bold transition ${isSelectionMode ? 'opacity-30 pointer-events-none':''}">
                             <i class="fas fa-trash"></i>
                         </button>
                     </div>
                 `;
                 grid.appendChild(div);
             });
+        }
+
+        // Nueva función para manejar el clic en imagen según el modo
+        function handleImageClick(id) {
+            if(isSelectionMode) {
+                toggleItemSelection(id);
+            } else {
+                openLightbox(id);
+            }
         }
 
         function showToast(type, msg) {
@@ -797,6 +925,7 @@
         
         // --- UPDATED LIGHTBOX ---
         function openLightbox(id) {
+            if(isSelectionMode) return;
             currentFolderImages = fileSystem.images.filter(img => img.parentId === currentFolderId);
             currentLightboxIndex = currentFolderImages.findIndex(i => i.id === id);
             updateLightboxContent();
