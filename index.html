@@ -158,6 +158,10 @@
                         <i class="fas fa-check-square"></i> <span class="hidden sm:inline">Seleccionar</span>
                     </button>
 
+                    <button type="button" onclick="exportFolderToCSV()" class="bg-pink-600 hover:bg-pink-500 text-white px-3 py-2 rounded-lg transition shadow text-sm" title="Descargar Carpeta como CSV">
+                        <i class="fas fa-file-download"></i>
+                    </button>
+
                     <button type="button" onclick="openStudyConfig()" class="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-lg transition shadow flex items-center gap-2 font-medium">
                         <i class="fas fa-brain"></i> <span class="hidden sm:inline">Aprender</span>
                     </button>
@@ -534,6 +538,59 @@
                     if(e.key === "Escape") closeLightboxForce();
                 }
             });
+        }
+
+        // --- CSV EXPORT (NUEVO) ---
+        function exportFolderToCSV() {
+            // 1. Filtrar imágenes de la carpeta actual
+            const imagesToExport = fileSystem.images.filter(img => img.parentId === currentFolderId);
+            
+            if (imagesToExport.length === 0) {
+                return showToast('error', 'La carpeta está vacía');
+            }
+
+            // 2. Construir contenido CSV
+            // BOM para que Excel lea UTF-8 correctamente
+            let csvContent = "\uFEFF"; 
+            
+            // Encabezados (Opcional, pero recomendado)
+            csvContent += "Título;Autor;Fecha;Estilo;Técnica;URL\n";
+
+            // Filas
+            imagesToExport.forEach(img => {
+                const row = [
+                    img.title,
+                    img.author,
+                    img.date,
+                    img.category, // Estilo
+                    img.technique,
+                    img.src
+                ].map(item => {
+                    // Escapar comillas y punto y coma
+                    let str = String(item || "");
+                    if (str.search(/(" |;|\n)/g) >= 0) {
+                        str = '"' + str.replace(/"/g, '""') + '"';
+                    }
+                    return str;
+                }).join(";"); // Usamos punto y coma para Excel en español
+
+                csvContent += row + "\n";
+            });
+
+            // 3. Crear descarga
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            
+            const folderName = fileSystem.folders.find(f => f.id === currentFolderId)?.name || "Inicio";
+            link.setAttribute("download", `catalogo_${folderName.replace(/\s+/g, '_')}.csv`);
+            
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            showToast('success', 'Descarga iniciada');
         }
 
         // --- CSV IMPORT FUNCTIONALITY ---
