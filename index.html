@@ -154,6 +154,10 @@
                         <i id="themeIcon" class="fas fa-moon"></i>
                     </button>
                     
+                    <button type="button" onclick="toggleThumbnails()" class="bg-teal-600 hover:bg-teal-500 text-white px-3 py-2 rounded-lg transition shadow text-sm flex items-center gap-2" title="Alternar Miniaturas">
+                        <i id="thumbnailToggleIcon" class="fas fa-image"></i>
+                    </button>
+
                     <button type="button" id="selectModeBtn" onclick="toggleSelectionMode()" class="bg-gray-600 hover:bg-gray-500 text-white px-3 py-2 rounded-lg transition shadow text-sm flex items-center gap-2" title="Selección Múltiple">
                         <i class="fas fa-check-square"></i> <span class="hidden sm:inline">Seleccionar</span>
                     </button>
@@ -400,12 +404,13 @@
         let saveTimeout;
         let authMode = 'login';
         
-        // Estado para Lightbox, Edición y Selección
+        // Estado para Lightbox, Edición, Selección y Mostrar Miniaturas
         let currentLightboxIndex = -1;
         let currentFolderImages = [];
         let editingImageId = null;
         let isSelectionMode = false;
-        let selectedItems = new Set(); // Stores IDs
+        let selectedItems = new Set();
+        let showThumbnails = true; // NUEVO ESTADO
 
         const inputClass = "w-full p-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:border-blue-500 dark:bg-gray-700 dark:text-white";
         document.querySelectorAll('.input-std').forEach(el => el.className = inputClass);
@@ -543,60 +548,38 @@
             });
         }
 
-        // --- CSV EXPORT (NUEVO) ---
+        // --- CSV EXPORT ---
         function exportFolderToCSV() {
-            // 1. Filtrar imágenes de la carpeta actual
             const imagesToExport = fileSystem.images.filter(img => img.parentId === currentFolderId);
-            
-            if (imagesToExport.length === 0) {
-                return showToast('error', 'La carpeta está vacía');
-            }
+            if (imagesToExport.length === 0) return showToast('error', 'La carpeta está vacía');
 
-            // 2. Construir contenido CSV
-            // BOM para que Excel lea UTF-8 correctamente
             let csvContent = "\uFEFF"; 
-            
-            // Encabezados (Opcional, pero recomendado)
             csvContent += "Título;Autor;Fecha;Estilo;Técnica;URL\n";
 
-            // Filas
             imagesToExport.forEach(img => {
-                const row = [
-                    img.title,
-                    img.author,
-                    img.date,
-                    img.category, // Estilo
-                    img.technique,
-                    img.src
-                ].map(item => {
-                    // Escapar comillas y punto y coma
+                const row = [img.title, img.author, img.date, img.category, img.technique, img.src].map(item => {
                     let str = String(item || "");
                     if (str.search(/(" |;|\n)/g) >= 0) {
                         str = '"' + str.replace(/"/g, '""') + '"';
                     }
                     return str;
-                }).join(";"); // Usamos punto y coma para Excel en español
-
+                }).join(";");
                 csvContent += row + "\n";
             });
 
-            // 3. Crear descarga
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             const url = URL.createObjectURL(blob);
             const link = document.createElement("a");
             link.setAttribute("href", url);
-            
             const folderName = fileSystem.folders.find(f => f.id === currentFolderId)?.name || "Inicio";
             link.setAttribute("download", `catalogo_${folderName.replace(/\s+/g, '_')}.csv`);
-            
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
-            
             showToast('success', 'Descarga iniciada');
         }
 
-        // --- CSV IMPORT FUNCTIONALITY ---
+        // --- CSV IMPORT ---
         function handleCSVUpload(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -613,19 +596,14 @@
             let count = 0;
             lines.forEach(line => {
                 const cols = line.split(separator).map(c => c.trim());
-                // Orden Estricto: 0:Titulo, 1:Autor, 2:Fecha, 3:Estilo(Categ), 4:Técnica, 5:URL
                 const url = cols[5] || "";
                 if (url && url.length > 5) {
                     fileSystem.images.push({
                         id: Date.now() + Math.random(), 
-                        parentId: currentFolderId,
-                        src: url,
-                        title: cols[0] || "Sin título",
-                        author: cols[1] || "Desconocido",
-                        date: cols[2] || "-",
-                        category: cols[3] || "General",
-                        technique: cols[4] || "-",
-                        location: "", description: ""
+                        parentId: currentFolderId, src: url,
+                        title: cols[0] || "Sin título", author: cols[1] || "Desconocido",
+                        date: cols[2] || "-", category: cols[3] || "General",
+                        technique: cols[4] || "-", location: "", description: ""
                     });
                     count++;
                 }
@@ -634,7 +612,7 @@
             else { showToast('error', 'No se encontraron filas válidas con URL'); }
         }
 
-        // --- LOGICA IMAGENES (AÑADIR Y EDITAR) ---
+        // --- LOGICA IMAGENES ---
         async function autoFillWikimedia() {
             const urlInput = document.getElementById('imgUrl');
             const url = urlInput.value.trim();
@@ -742,15 +720,11 @@
             } else {
                 fileSystem.images.push({
                     id: Date.now(), parentId: currentFolderId, src: url,
-                    ...newData,
-                    location: "", description: ""
+                    ...newData, location: "", description: ""
                 });
                 showToast('success', 'Imagen creada');
             }
-            
-            render(); 
-            closeForm(); 
-            syncToCloud();
+            render(); closeForm(); syncToCloud();
         }
 
         function deleteImage(e, id) {
@@ -777,15 +751,13 @@
                 btn.classList.remove('bg-blue-600');
                 btn.classList.add('bg-gray-600');
             }
-            render();
-            updateSelectionCount();
+            render(); updateSelectionCount();
         }
 
         function toggleItemSelection(id) {
             if(selectedItems.has(id)) selectedItems.delete(id);
             else selectedItems.add(id);
-            render(); // Re-render to show selection border
-            updateSelectionCount();
+            render(); updateSelectionCount();
         }
 
         function updateSelectionCount() {
@@ -799,50 +771,33 @@
             } else {
                 currentImages.forEach(img => selectedItems.add(img.id));
             }
-            render();
-            updateSelectionCount();
+            render(); updateSelectionCount();
         }
 
         function deleteSelected() {
             if(selectedItems.size === 0) return;
             if(!confirm(`¿Borrar ${selectedItems.size} imágenes?`)) return;
             fileSystem.images = fileSystem.images.filter(i => !selectedItems.has(i.id));
-            toggleSelectionMode(); // Salir modo selección
-            syncToCloud();
+            toggleSelectionMode(); syncToCloud();
         }
 
         function openMoveModal() {
             if(selectedItems.size === 0) return;
             const list = document.getElementById('moveFolderList');
             list.innerHTML = '';
-            
-            // Opción Carpeta Raíz
-            list.innerHTML += `
-                <div onclick="moveSelectedTo(null)" class="p-3 border-b hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer dark:text-white flex items-center gap-2">
-                    <i class="fas fa-home text-blue-500"></i> Inicio (Raíz)
-                </div>`;
-
-            // Listar carpetas
+            list.innerHTML += `<div onclick="moveSelectedTo(null)" class="p-3 border-b hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer dark:text-white flex items-center gap-2"><i class="fas fa-home text-blue-500"></i> Inicio (Raíz)</div>`;
             fileSystem.folders.forEach(f => {
                 if(f.id !== currentFolderId) { 
-                   list.innerHTML += `
-                    <div onclick="moveSelectedTo(${f.id})" class="p-3 border-b hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer dark:text-white flex items-center gap-2">
-                        <i class="fas fa-folder text-yellow-500"></i> ${f.name}
-                    </div>`; 
+                   list.innerHTML += `<div onclick="moveSelectedTo(${f.id})" class="p-3 border-b hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer dark:text-white flex items-center gap-2"><i class="fas fa-folder text-yellow-500"></i> ${f.name}</div>`; 
                 }
             });
             document.getElementById('moveModal').classList.remove('hidden');
         }
 
         function moveSelectedTo(targetFolderId) {
-            fileSystem.images.forEach(img => {
-                if(selectedItems.has(img.id)) {
-                    img.parentId = targetFolderId;
-                }
-            });
+            fileSystem.images.forEach(img => { if(selectedItems.has(img.id)) img.parentId = targetFolderId; });
             document.getElementById('moveModal').classList.add('hidden');
-            toggleSelectionMode();
-            syncToCloud();
+            toggleSelectionMode(); syncToCloud();
             showToast('success', 'Imágenes movidas');
         }
 
@@ -884,7 +839,6 @@
             document.getElementById('studyTitle').textContent = card.title;
             document.getElementById('studyAuthor').textContent = card.author;
             document.getElementById('studyDate').textContent = card.date;
-            // ACTUALIZADO: Rellenar campo Estilo
             document.getElementById('studyStyle').textContent = card.category || "-";
             document.getElementById('studyTechnique').textContent = card.technique || "-";
         }
@@ -897,6 +851,14 @@
         }
         function endStudySession() { document.getElementById('studyModal').classList.add('hidden'); }
         function updateZoom(val) { document.getElementById('studyImgFront').style.transform = `scale(${val})`; }
+
+        // --- NUEVA FUNCIÓN: Alternar Miniaturas ---
+        function toggleThumbnails() {
+            showThumbnails = !showThumbnails;
+            const icon = document.getElementById('thumbnailToggleIcon');
+            icon.className = showThumbnails ? 'fas fa-image' : 'fas fa-image-slash text-gray-400';
+            render();
+        }
 
         // --- RENDER ---
         function render() {
@@ -930,15 +892,22 @@
                 const div = document.createElement('div');
                 div.className = `image-card bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden flex flex-col h-full relative transition-all duration-200 ${isSelected ? 'selected' : ''}`;
                 
-                // MODIFICADO: Recuperamos la etiqueta <img> y le añadimos el evento 'onerror' para que se convierta en la 'x' roja si falla
+                // LÓGICA PARA MOSTRAR/OCULTAR MINIATURA
+                let imageElement = '';
+                if (showThumbnails) {
+                    imageElement = `<img src="${img.src}" loading="lazy" referrerpolicy="no-referrer" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" onerror="this.outerHTML='<i class=\\'fas fa-times text-red-500 text-4xl transition-transform duration-300 group-hover:scale-110\\'></i>'">`;
+                } else {
+                    imageElement = `<i class="fas fa-image text-gray-300 dark:text-gray-600 text-5xl transition-transform duration-300 group-hover:scale-110"></i>`;
+                }
+
                 div.innerHTML = `
                     <div onclick="handleImageClick(${img.id})" class="flex-grow flex flex-col cursor-pointer group relative">
                          <div class="check-overlay absolute inset-0 bg-blue-500/20 z-10 flex items-center justify-center pointer-events-none">
                             <i class="fas fa-check-circle text-white text-4xl drop-shadow-lg"></i>
                         </div>
 
-                        <div class="h-32 overflow-hidden bg-gray-100 dark:bg-gray-900 relative w-full flex items-center justify-center">
-                            <img src="${img.src}" loading="lazy" referrerpolicy="no-referrer" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" onerror="this.outerHTML='<i class=\\'fas fa-times text-red-500 text-4xl transition-transform duration-300 group-hover:scale-110\\'></i>'">
+                        <div class="h-32 overflow-hidden bg-gray-100 dark:bg-gray-900 relative w-full flex items-center justify-center border-b border-gray-100 dark:border-gray-700">
+                            ${imageElement}
                         </div>
                         <div class="p-3 flex-grow bg-white dark:bg-gray-800 group-hover:bg-gray-50 dark:group-hover:bg-gray-750 transition">
                             <h3 class="font-bold text-sm text-gray-800 dark:text-gray-200 truncate leading-tight mb-1">${img.title}</h3>
@@ -959,11 +928,7 @@
         }
 
         function handleImageClick(id) {
-            if(isSelectionMode) {
-                toggleItemSelection(id);
-            } else {
-                openLightbox(id);
-            }
+            if(isSelectionMode) toggleItemSelection(id); else openLightbox(id);
         }
 
         function showToast(type, msg) {
@@ -999,7 +964,7 @@
         function openFolderModal() { document.getElementById('newFolderName').value=""; document.getElementById('folderModal').classList.remove('hidden'); }
         function closeFolderModal() { document.getElementById('folderModal').classList.add('hidden'); }
         
-        // --- UPDATED LIGHTBOX ---
+        // --- LIGHTBOX ---
         function openLightbox(id) {
             if(isSelectionMode) return;
             currentFolderImages = fileSystem.images.filter(img => img.parentId === currentFolderId);
@@ -1023,8 +988,6 @@
             const img = currentFolderImages[currentLightboxIndex];
             document.getElementById('lightboxImg').src = img.src;
             document.getElementById('lbTitle').textContent = img.title;
-            
-            // ACTUALIZADO: Mostrar Autor | Fecha | Estilo (Categoría)
             const metaParts = [img.author, img.date];
             if(img.category && img.category !== 'General') metaParts.push(img.category);
             document.getElementById('lbMeta').textContent = metaParts.filter(Boolean).join(' | ');
