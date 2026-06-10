@@ -168,9 +168,20 @@
                         <i class="fas fa-file-download"></i>
                     </button>
 
-                    <button type="button" onclick="openStudyConfig()" class="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-lg transition shadow flex items-center gap-2 font-medium">
-                        <i class="fas fa-brain"></i> <span class="hidden sm:inline">Aprender</span>
-                    </button>
+                    <div class="relative" id="studySessionsWrapper">
+                        <button type="button" onclick="toggleStudySessionsDropdown(event)" class="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-lg transition shadow flex items-center gap-2 font-medium">
+                            <i class="fas fa-brain"></i> <span class="hidden sm:inline">Sesiones de estudio</span> <i class="fas fa-chevron-down text-xs opacity-80"></i>
+                        </button>
+                        <div id="studySessionsDropdown" class="hidden absolute right-0 mt-2 w-80 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden">
+                            <div class="p-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between gap-3">
+                                <span class="font-bold text-sm flex items-center gap-2"><i class="fas fa-layer-group text-purple-500"></i> Sesiones</span>
+                                <button type="button" onclick="openStudyConfigFromDropdown()" class="bg-purple-600 hover:bg-purple-500 text-white text-xs px-3 py-1 rounded-full font-bold transition">
+                                    Nueva
+                                </button>
+                            </div>
+                            <div id="studySessionsList" class="max-h-80 overflow-y-auto"></div>
+                        </div>
+                    </div>
                     <button type="button" onclick="openFolderModal()" class="bg-yellow-600 hover:bg-yellow-500 text-white px-3 py-2 rounded-lg transition shadow text-sm" title="Nueva Carpeta">
                         <i class="fas fa-folder-plus"></i>
                     </button>
@@ -355,9 +366,12 @@
                         </div>
                     </div>
 
-                    <div class="h-24 bg-gray-100 dark:bg-gray-900 flex items-center px-4 gap-4 border-t border-gray-200 dark:border-gray-700">
-                        <button type="button" onclick="rateCard(false)" class="flex-1 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-300 h-14 rounded-xl font-bold border border-red-300 dark:border-red-800 hover:bg-red-200 dark:hover:bg-red-900/50 transition">Repasar</button>
-                        <button type="button" onclick="rateCard(true)" class="flex-1 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-300 h-14 rounded-xl font-bold border border-green-300 dark:border-green-800 hover:bg-green-200 dark:hover:bg-green-900/50 transition">Me la sé</button>
+                    <div class="min-h-24 bg-gray-100 dark:bg-gray-900 flex flex-wrap items-center px-4 py-3 gap-2 border-t border-gray-200 dark:border-gray-700">
+                        <button type="button" onclick="rateCard('muy_mal')" class="flex-1 min-w-[95px] bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 h-12 rounded-xl font-bold border border-red-300 dark:border-red-800 hover:bg-red-200 dark:hover:bg-red-900/50 transition">Muy mal</button>
+                        <button type="button" onclick="rateCard('mal')" class="flex-1 min-w-[95px] bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 h-12 rounded-xl font-bold border border-orange-300 dark:border-orange-800 hover:bg-orange-200 dark:hover:bg-orange-900/50 transition">Mal</button>
+                        <button type="button" onclick="rateCard('regular')" class="flex-1 min-w-[95px] bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 h-12 rounded-xl font-bold border border-yellow-300 dark:border-yellow-800 hover:bg-yellow-200 dark:hover:bg-yellow-900/50 transition">Regular</button>
+                        <button type="button" onclick="rateCard('bien')" class="flex-1 min-w-[95px] bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 h-12 rounded-xl font-bold border border-blue-300 dark:border-blue-800 hover:bg-blue-200 dark:hover:bg-blue-900/50 transition">Bien</button>
+                        <button type="button" onclick="rateCard('muy_bien')" class="flex-1 min-w-[95px] bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 h-12 rounded-xl font-bold border border-green-300 dark:border-green-800 hover:bg-green-200 dark:hover:bg-green-900/50 transition">Muy bien</button>
                     </div>
                 </div>
             </div>
@@ -401,8 +415,10 @@
         // ESTADO
         let currentUser = null;
         let currentFolderId = null;
-        let fileSystem = { folders: [], images: [] };
+        let fileSystem = { folders: [], images: [], studySessions: [] };
         let studyQueue = [];
+        let activeStudySessionId = null;
+        const studyReviewIntervals = { muy_mal: 3, mal: 6, regular: 9, bien: 12, muy_bien: 30 };
         let saveTimeout;
         let authMode = 'login';
         
@@ -513,6 +529,13 @@
         });
 
         // --- DATABASE ---
+        function normalizeFileSystem() {
+            if (!fileSystem) fileSystem = {};
+            if (!Array.isArray(fileSystem.folders)) fileSystem.folders = [];
+            if (!Array.isArray(fileSystem.images)) fileSystem.images = [];
+            if (!Array.isArray(fileSystem.studySessions)) fileSystem.studySessions = [];
+        }
+
         async function loadCloudData() {
             showToast('loading', 'Sincronizando...');
             try {
@@ -520,9 +543,10 @@
                 const docSnap = await docRef.get();
                 if (docSnap.exists) {
                     fileSystem = docSnap.data();
+                    normalizeFileSystem();
                     showToast('success', 'Datos cargados');
                 } else {
-                    fileSystem = { folders: [], images: [] };
+                    fileSystem = { folders: [], images: [], studySessions: [] };
                     await docRef.set(fileSystem);
                 }
                 render();
@@ -530,9 +554,16 @@
         }
         async function syncToCloud() {
             if (!currentUser) return;
+            normalizeFileSystem();
             showToast('loading', 'Guardando...');
             try { await db.collection('usuarios').doc(currentUser.uid).set(fileSystem); showToast('success', 'Guardado'); } 
             catch (error) { showToast('error', 'No se pudo guardar'); }
+        }
+        async function saveStudySessionProgress() {
+            if (!currentUser) return;
+            normalizeFileSystem();
+            try { await db.collection('usuarios').doc(currentUser.uid).set(fileSystem); }
+            catch (error) { console.error(error); showToast('error', 'No se pudo guardar la sesión'); }
         }
         function initApp() {
             if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
@@ -547,6 +578,12 @@
                     if(e.key === "ArrowRight") changeLightboxImage(null, 1);
                     if(e.key === "Escape") closeLightboxForce();
                 }
+            });
+
+            document.addEventListener('click', (e) => {
+                const wrapper = document.getElementById('studySessionsWrapper');
+                const dropdown = document.getElementById('studySessionsDropdown');
+                if (wrapper && dropdown && !wrapper.contains(e.target)) dropdown.classList.add('hidden');
             });
         }
 
@@ -804,25 +841,124 @@
         }
 
         // --- SISTEMA FLASHCARDS ---
+        function escapeHTML(value) {
+            return String(value || '').replace(/[&<>'"]/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[char]));
+        }
+
+        function formatSessionDate(isoDate) {
+            if (!isoDate) return '';
+            const date = new Date(isoDate);
+            if (Number.isNaN(date.getTime())) return '';
+            return date.toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+        }
+
+        function toggleStudySessionsDropdown(event) {
+            if (event) event.stopPropagation();
+            normalizeFileSystem();
+            renderStudySessionsDropdown();
+            document.getElementById('studySessionsDropdown').classList.toggle('hidden');
+        }
+
+        function openStudyConfigFromDropdown() {
+            document.getElementById('studySessionsDropdown').classList.add('hidden');
+            openStudyConfig();
+        }
+
+        function renderStudySessionsDropdown() {
+            normalizeFileSystem();
+            const list = document.getElementById('studySessionsList');
+            const sessions = [...fileSystem.studySessions].sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0));
+            if (sessions.length === 0) {
+                list.innerHTML = `<div class="p-4 text-sm text-gray-500 dark:text-gray-400 text-center">No hay sesiones guardadas todavía.</div>`;
+                return;
+            }
+            list.innerHTML = sessions.map(session => {
+                const cardsLeft = Array.isArray(session.queueIds) ? session.queueIds.length : 0;
+                const updatedAt = formatSessionDate(session.updatedAt);
+                return `
+                    <div class="p-3 border-b border-gray-100 dark:border-gray-700 last:border-b-0">
+                        <div class="font-bold text-sm truncate">${escapeHTML(session.name || 'Sesión de estudio')}</div>
+                        <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">${cardsLeft} cartas en cola${updatedAt ? ` · ${updatedAt}` : ''}</div>
+                        <div class="flex gap-2 mt-3">
+                            <button type="button" onclick="continueStudySession('${session.id}')" class="flex-1 bg-purple-600 hover:bg-purple-500 text-white text-xs py-2 rounded-lg font-bold transition">Continuar</button>
+                            <button type="button" onclick="deleteStudySession(event, '${session.id}')" class="bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-300 text-xs px-3 py-2 rounded-lg font-bold border border-red-200 dark:border-red-800 hover:bg-red-200 dark:hover:bg-red-900/50 transition">Borrar</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function deleteStudySession(event, sessionId) {
+            if (event) event.stopPropagation();
+            if (!confirm('¿Borrar esta sesión de estudio?')) return;
+            normalizeFileSystem();
+            fileSystem.studySessions = fileSystem.studySessions.filter(session => session.id !== sessionId);
+            if (activeStudySessionId === sessionId) {
+                activeStudySessionId = null;
+                studyQueue = [];
+                document.getElementById('studyModal').classList.add('hidden');
+            }
+            renderStudySessionsDropdown();
+            syncToCloud();
+        }
+
+        function continueStudySession(sessionId) {
+            normalizeFileSystem();
+            const session = fileSystem.studySessions.find(s => s.id === sessionId);
+            if (!session) return showToast('error', 'No se encontró la sesión');
+            const imagesById = new Map(fileSystem.images.map(img => [String(img.id), img]));
+            const queuedImages = (session.queueIds || []).map(id => imagesById.get(String(id))).filter(Boolean);
+            if (queuedImages.length === 0) return showToast('error', 'La sesión no tiene cartas disponibles');
+            document.getElementById('studySessionsDropdown').classList.add('hidden');
+            startStudy(queuedImages, session);
+        }
+
         function openStudyConfig() {
             if(!fileSystem || !fileSystem.folders) { showToast('error', 'Cargando datos...'); return; }
+            normalizeFileSystem();
             const list = document.getElementById('folderSelectionList'); list.innerHTML = "";
+            list.innerHTML += `<label class="flex gap-2 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer dark:text-white rounded"><input type="checkbox" value="root" checked class="folder-check accent-purple-600"> <span>Inicio</span></label>`;
             fileSystem.folders.forEach(f => {
-                list.innerHTML += `<label class="flex gap-2 p-2 hover:bg-gray-700 cursor-pointer"><input type="checkbox" value="${f.id}" checked class="folder-check"> <span>${f.name}</span></label>`;
+                list.innerHTML += `<label class="flex gap-2 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer dark:text-white rounded"><input type="checkbox" value="${f.id}" checked class="folder-check accent-purple-600"> <span>${escapeHTML(f.name)}</span></label>`;
             });
+            document.getElementById('selectAllCheck').checked = true;
             document.getElementById('studyConfigModal').classList.remove('hidden');
         }
         function toggleSelectAllFolders(cb) { document.querySelectorAll('.folder-check').forEach(c => c.checked = cb.checked); }
         function confirmStudySession() {
+            normalizeFileSystem();
             const ids = Array.from(document.querySelectorAll('.folder-check:checked')).map(c => c.value);
             const imgs = fileSystem.images.filter(i => ids.includes(i.parentId?.toString()) || (i.parentId===null && ids.includes("root")));
             const finalImgs = imgs.length > 0 ? imgs : fileSystem.images; 
             if(finalImgs.length===0) return alert("No hay imágenes para estudiar");
-            startStudy(finalImgs); 
+            startStudy(finalImgs, null, ids); 
             document.getElementById('studyConfigModal').classList.add('hidden');
         }
-        function startStudy(imgs) {
-            studyQueue = [...imgs].sort(() => Math.random() - 0.5);
+        function createStudySession(queue, folderIds) {
+            normalizeFileSystem();
+            const now = new Date().toISOString();
+            const session = {
+                id: `study_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+                name: `Sesión ${formatSessionDate(now)}`,
+                createdAt: now,
+                updatedAt: now,
+                folderIds: folderIds || [],
+                queueIds: queue.map(card => card.id),
+                totalCards: new Set(queue.map(card => String(card.id))).size,
+                reviews: 0
+            };
+            fileSystem.studySessions.push(session);
+            return session.id;
+        }
+        function startStudy(imgs, existingSession = null, folderIds = []) {
+            if (existingSession) {
+                activeStudySessionId = existingSession.id;
+                studyQueue = [...imgs];
+            } else {
+                studyQueue = [...imgs].sort(() => Math.random() - 0.5);
+                activeStudySessionId = createStudySession(studyQueue, folderIds);
+                syncToCloud();
+            }
             document.getElementById('studyModal').classList.remove('hidden');
             document.getElementById('studyEndMsg').classList.add('hidden');
             document.getElementById('studyCardContainer').classList.remove('hidden');
@@ -845,13 +981,32 @@
             document.getElementById('studyTechnique').textContent = card.technique || "-";
         }
         function flipCardToBack() { document.getElementById('studyCardInner').classList.add('flipped'); }
-        function rateCard(isKnown) {
+        function persistActiveStudySession(lastRating = null) {
+            if (!activeStudySessionId) return;
+            normalizeFileSystem();
+            const session = fileSystem.studySessions.find(s => s.id === activeStudySessionId);
+            if (!session) return;
+            session.queueIds = studyQueue.map(card => card.id);
+            session.updatedAt = new Date().toISOString();
+            session.reviews = (session.reviews || 0) + (lastRating ? 1 : 0);
+            if (lastRating) session.lastRating = lastRating;
+            saveStudySessionProgress();
+        }
+        function rateCard(rating) {
+            if (studyQueue.length === 0) return;
             const currentCard = studyQueue.shift();
-            if (!isKnown) studyQueue.push(currentCard);
+            const interval = studyReviewIntervals[rating] || studyReviewIntervals.bien;
+            const insertIndex = Math.min(interval, studyQueue.length);
+            studyQueue.splice(insertIndex, 0, currentCard);
+            persistActiveStudySession(rating);
             document.getElementById('studyCardInner').classList.remove('flipped');
             setTimeout(() => { loadStudyCard(); }, 300);
         }
-        function endStudySession() { document.getElementById('studyModal').classList.add('hidden'); }
+        function endStudySession() {
+            persistActiveStudySession();
+            document.getElementById('studyModal').classList.add('hidden');
+            showToast('success', 'Sesión guardada');
+        }
         function updateZoom(val) { document.getElementById('studyImgFront').style.transform = `scale(${val})`; }
 
         // --- NUEVA FUNCIÓN: Alternar Miniaturas ---
