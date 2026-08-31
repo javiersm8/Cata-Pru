@@ -7,18 +7,47 @@
     <title>Catálogo Nube</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
-    <script> tailwind.config = { darkMode: 'class' } </script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        serif: ['"Playfair Display"', 'serif'],
+                        sans: ['"Work Sans"', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500&family=Work+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
 
     <style>
+        /* --- Paleta "Galería" --- */
+        :root {
+            --ink: #1B2430;
+            --ink-light: #3A4557;
+            --brass: #B08D57;
+            --brass-dark: #8C6D3F;
+            --paper: #FBF7EE;
+            --paper-dark: #241E14;
+            --plum: #6B3F69;
+            --plum-dark: #55315A;
+        }
+
         /* Estilos base */
+        body { font-family: 'Work Sans', sans-serif; }
+        h1, h2, h3, #studyTitle, #lbTitle { font-family: 'Playfair Display', serif; letter-spacing: 0.01em; }
         body, .bg-card, .text-content { transition: background-color 0.3s, color 0.3s; }
-        .folder-card, .image-card { transition: transform 0.2s; }
-        .folder-card:hover, .image-card:hover { transform: translateY(-3px); }
+        .folder-card, .image-card { transition: transform 0.2s, box-shadow 0.2s; }
+        .folder-card:hover, .image-card:hover { transform: translateY(-3px); box-shadow: 0 12px 20px -8px rgba(27, 36, 48, 0.25); }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         .fade-in { animation: fadeIn 0.3s ease-in-out; }
@@ -40,7 +69,7 @@
             box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
         }
         .card-front { background: #000; z-index: 2; transform: rotateY(0deg); }
-        .card-back { background: white; transform: rotateY(180deg); z-index: 1; }
+        .card-back { background: var(--paper); transform: rotateY(180deg); z-index: 1; }
         .dark .card-back { background: #1f2937; }
         .zoom-container { overflow: auto; display: flex; align-items: center; justify-content: center; height: 100%; width: 100%; }
 
@@ -59,7 +88,9 @@
         /* Login */
         #loginScreen {
             position: fixed; inset: 0; z-index: 1000;
-            background: rgba(17, 24, 39, 0.95);
+            background:
+                radial-gradient(ellipse at top right, rgba(176, 141, 87, 0.18), transparent 55%),
+                linear-gradient(135deg, var(--ink) 0%, #10151d 100%);
             display: flex; flex-direction: column;
             justify-content: center; items-center;
             overflow-y: auto; padding: 20px;
@@ -85,35 +116,35 @@
     <div id="loginScreen">
         <div class="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-2xl w-full max-w-md fade-in relative overflow-hidden">
             <div class="text-center mb-6">
-                <i class="fas fa-cloud text-5xl text-blue-500 mb-4"></i>
+                <i class="fas fa-cloud text-5xl text-[#B08D57] mb-4"></i>
                 <h1 class="text-2xl font-bold dark:text-white">Catálogo Nube</h1>
                 <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Gestiona y estudia tus imágenes</p>
             </div>
 
             <div class="flex border-b border-gray-200 dark:border-gray-700 mb-6">
-                <button onclick="switchAuthMode('login')" id="tabLogin" class="flex-1 pb-2 font-semibold text-blue-600 border-b-2 border-blue-600 transition-colors">Iniciar Sesión</button>
+                <button onclick="switchAuthMode('login')" id="tabLogin" class="flex-1 pb-2 font-semibold text-[#8C6D3F] border-b-2 border-[#8C6D3F] transition-colors">Iniciar Sesión</button>
                 <button onclick="switchAuthMode('register')" id="tabRegister" class="flex-1 pb-2 font-semibold text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors">Registrarse</button>
             </div>
 
             <form onsubmit="handleEmailAuth(event)" class="space-y-4">
                 <div id="nameField" class="hidden">
                     <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">NOMBRE</label>
-                    <input type="text" id="authName" placeholder="Tu nombre" class="w-full p-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition">
+                    <input type="text" id="authName" placeholder="Tu nombre" class="w-full p-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#B08D57] outline-none transition">
                 </div>
 
                 <div>
                     <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">CORREO ELECTRÓNICO</label>
-                    <input type="email" id="authEmail" placeholder="ejemplo@correo.com" required class="w-full p-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition">
+                    <input type="email" id="authEmail" placeholder="ejemplo@correo.com" required class="w-full p-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#B08D57] outline-none transition">
                 </div>
 
                 <div>
                     <label class="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">CONTRASEÑA</label>
-                    <input type="password" id="authPassword" placeholder="******" required class="w-full p-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition">
+                    <input type="password" id="authPassword" placeholder="******" required class="w-full p-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-[#B08D57] outline-none transition">
                 </div>
 
                 <div id="authErrorMsg" class="text-red-500 text-sm text-center hidden"></div>
 
-                <button type="submit" id="submitAuthBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-lg transform transition active:scale-95">
+                <button type="submit" id="submitAuthBtn" class="w-full bg-[#8C6D3F] hover:bg-[#6E5530] text-white font-bold py-3 px-4 rounded-lg shadow-lg transform transition active:scale-95">
                     Entrar
                 </button>
             </form>
@@ -136,20 +167,20 @@
             <i class="fas fa-circle-notch fa-spin"></i> <span>Cargando...</span>
         </div>
 
-        <nav class="bg-blue-900 dark:bg-gray-800 text-white p-4 shadow-lg sticky top-0 z-40">
+        <nav class="bg-[#1B2430] dark:bg-gray-800 text-white p-4 shadow-lg sticky top-0 z-40 border-b-2 border-[#B08D57]/50">
             <div class="container mx-auto flex justify-between items-center flex-wrap gap-4">
-                <h1 class="text-xl font-bold flex items-center gap-2 cursor-pointer select-none" onclick="goHome()">
-                    <i class="fas fa-cloud"></i> <span class="hidden sm:inline">Catálogo Nube</span>
+                <h1 class="text-xl font-semibold flex items-center gap-2 cursor-pointer select-none" onclick="goHome()">
+                    <i class="fas fa-cloud text-[#B08D57]"></i> <span class="hidden sm:inline">Catálogo Nube</span>
                 </h1>
                 
                 <div class="flex gap-3 items-center ml-auto">
                     <button type="button" onclick="logout()" class="text-sm font-semibold bg-red-600/20 hover:bg-red-600/40 px-3 py-1 rounded-full border border-red-500/50 flex items-center gap-2 transition">
                         <img id="userAvatar" src="" class="w-5 h-5 rounded-full hidden">
-                        <div id="defaultAvatar" class="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center text-xs font-bold hidden">U</div>
+                        <div id="defaultAvatar" class="w-5 h-5 rounded-full bg-[#B08D57] flex items-center justify-center text-xs font-bold hidden">U</div>
                         <span id="userName" class="hidden sm:inline">Usuario</span>
                         <i class="fas fa-sign-out-alt"></i>
                     </button>
-                    <div class="h-6 w-px bg-blue-700 mx-2 hidden sm:block"></div>
+                    <div class="h-6 w-px bg-[#3A4557] mx-2 hidden sm:block"></div>
                     
                     <button type="button" onclick="toggleDarkMode()" class="p-2 rounded-full hover:bg-white/10 transition flex items-center justify-center" title="Cambiar Tema">
                         <i id="themeIcon" class="fas fa-moon text-lg"></i>
@@ -159,7 +190,7 @@
                         <i id="thumbnailToggleIcon" class="fas fa-image text-white text-lg"></i>
                     </button>
                     
-                    <div class="h-6 w-px bg-blue-700 mx-2 hidden sm:block"></div>
+                    <div class="h-6 w-px bg-[#3A4557] mx-2 hidden sm:block"></div>
                     <button type="button" id="selectModeBtn" onclick="toggleSelectionMode()" class="bg-gray-600 hover:bg-gray-500 text-white px-3 py-2 rounded-lg transition shadow text-sm flex items-center gap-2" title="Selección Múltiple">
                         <i class="fas fa-check-square"></i> <span class="hidden sm:inline">Seleccionar</span>
                     </button>
@@ -185,7 +216,7 @@
                     <button type="button" onclick="openFolderModal()" class="bg-yellow-600 hover:bg-yellow-500 text-white px-3 py-2 rounded-lg transition shadow text-sm" title="Nueva Carpeta">
                         <i class="fas fa-folder-plus"></i>
                     </button>
-                    <button type="button" onclick="openFormForNew()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded-lg transition shadow text-sm" title="Añadir Imagen">
+                    <button type="button" onclick="openFormForNew()" class="bg-[#8C6D3F] hover:bg-[#A67F45] text-white px-3 py-2 rounded-lg transition shadow text-sm" title="Añadir Imagen">
                         <i class="fas fa-plus"></i>
                     </button>
                 </div>
@@ -194,7 +225,7 @@
 
         <div class="bg-white dark:bg-gray-800 border-b dark:border-gray-700 px-4 py-2 shadow-sm transition-colors">
             <div class="container mx-auto flex items-center text-sm text-gray-600 dark:text-gray-300 overflow-x-auto no-scrollbar whitespace-nowrap">
-                <button onclick="goHome()" class="hover:text-blue-500 font-semibold flex items-center gap-1"><i class="fas fa-home"></i> Inicio</button>
+                <button onclick="goHome()" class="hover:text-[#8C6D3F] font-semibold flex items-center gap-1"><i class="fas fa-home"></i> Inicio</button>
                 <span id="breadcrumbContainer" class="flex items-center"></span>
             </div>
         </div>
@@ -204,7 +235,7 @@
             <div id="addFormContainer" class="hidden mb-8 bg-white dark:bg-gray-800 p-6 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 fade-in">
                 <div class="flex justify-between items-center mb-4">
                     <h2 class="text-lg font-semibold text-gray-700 dark:text-gray-200">
-                        <span id="formTitle">Nueva Imagen</span> en: <span id="currentFolderLabel" class="text-blue-600 dark:text-blue-400 font-bold">Inicio</span>
+                        <span id="formTitle">Nueva Imagen</span> en: <span id="currentFolderLabel" class="text-[#8C6D3F] dark:text-[#D4BA82] font-bold">Inicio</span>
                     </h2>
                     <div class="flex items-center gap-3">
                         <div class="relative" id="csvButtonContainer">
@@ -220,7 +251,7 @@
                 <form id="imageForm" onsubmit="handleFormSubmit(event)" class="space-y-4">
                     <div id="urlInputContainer" class="flex gap-2">
                         <input type="url" id="imgUrl" placeholder="Pega URL de imagen (Wikimedia, etc)..." 
-                            class="flex-grow p-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded focus:ring-2 focus:ring-blue-500 outline-none transition-all">
+                            class="flex-grow p-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded focus:ring-2 focus:ring-[#B08D57] outline-none transition-all">
                         
                         <button type="button" onclick="autoFillWikimedia()" id="btnMagic" class="bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white px-4 rounded shadow-md transition-all active:scale-95 flex items-center gap-2" title="Autorellenar">
                             <i class="fas fa-wand-magic-sparkles"></i> 
@@ -237,6 +268,11 @@
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <input type="text" id="technique" placeholder="Técnica y Soporte (ej: Óleo sobre lienzo)" class="input-std col-span-2">
                     </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-[#8C6D3F] dark:text-[#D4BA82] mb-1 uppercase tracking-wide"><i class="fas fa-lightbulb mr-1"></i> Lo que representa la obra</label>
+                        <textarea id="symbolism" rows="3" placeholder="Simbolismo, significado, contexto histórico o iconográfico..." class="input-std"></textarea>
+                    </div>
                     
                     <div class="hidden">
                          <input type="text" id="location">
@@ -244,7 +280,7 @@
                     </div>
 
                     <div class="flex justify-between items-center pt-2">
-                        <p class="text-xs text-gray-400" id="csvHint">CSV orden exacto: Título, Autor, Fecha, Estilo, Técnica, URL</p>
+                        <p class="text-xs text-gray-400" id="csvHint">CSV orden exacto: Título, Autor, Fecha, Estilo, Técnica, URL, Lo que representa la obra</p>
                         <div class="flex gap-2">
                             <button type="button" onclick="closeForm()" class="px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded">Cancelar</button>
                             <button type="submit" id="formSubmitBtn" class="px-6 py-2 bg-green-600 hover:bg-green-500 text-white rounded shadow transition">Guardar</button>
@@ -268,7 +304,7 @@
                 <button onclick="selectAllInFolder()" class="bg-indigo-600 hover:bg-indigo-500 px-4 py-2 rounded font-bold transition">
                     <i class="fas fa-check-double"></i> Todo
                 </button>
-                <button onclick="openMoveModal()" class="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded font-bold transition">
+                <button onclick="openMoveModal()" class="bg-[#8C6D3F] hover:bg-[#A67F45] px-4 py-2 rounded font-bold transition">
                     <i class="fas fa-folder-open"></i> Mover a...
                 </button>
                 <button onclick="deleteSelected()" class="bg-red-600 hover:bg-red-500 px-4 py-2 rounded font-bold transition">
@@ -287,7 +323,7 @@
             <input type="text" id="newFolderName" placeholder="Nombre..." class="w-full p-2 border rounded mb-4 dark:bg-gray-700 dark:border-gray-600 dark:text-white outline-none" onkeyup="if(event.key === 'Enter') createFolder()">
             <div class="flex justify-end gap-2">
                 <button type="button" onclick="closeFolderModal()" class="px-3 py-1 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded">Cancelar</button>
-                <button type="button" onclick="createFolder()" class="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-500">Crear</button>
+                <button type="button" onclick="createFolder()" class="px-3 py-1 bg-[#8C6D3F] text-white rounded hover:bg-[#A67F45]">Crear</button>
             </div>
         </div>
     </div>
@@ -339,17 +375,17 @@
                          <div class="zoom-container"><img id="studyImgFront" src="" class="max-w-none transition-transform duration-100" style="max-height: 100%;" referrerpolicy="no-referrer"></div>
                     </div>
                     <div class="h-20 bg-gray-50 dark:bg-gray-800 flex items-center justify-center relative border-t border-gray-700">
-                         <button type="button" onclick="flipCardToBack()" class="bg-blue-600 hover:bg-blue-500 text-white px-12 py-3 rounded-full font-bold shadow-lg transform transition active:scale-95">Ver Datos <i class="fas fa-eye"></i></button>
+                         <button type="button" onclick="flipCardToBack()" class="bg-[#8C6D3F] hover:bg-[#A67F45] text-white px-12 py-3 rounded-full font-bold shadow-lg transform transition active:scale-95">Ver Datos <i class="fas fa-eye"></i></button>
                     </div>
                 </div>
 
                 <div class="card-face card-back border border-gray-700">
                     <div class="flex-grow p-8 flex flex-col justify-center items-center text-center overflow-y-auto">
                         <h2 id="studyTitle" class="text-3xl font-bold text-gray-800 dark:text-white mb-8"></h2>
-                        <div class="w-full max-w-lg space-y-6 text-left bg-gray-100 dark:bg-gray-700 p-6 rounded-xl border border-gray-200 dark:border-gray-600">
+                        <div class="w-full max-w-lg space-y-6 text-left bg-[#F3ECDB] dark:bg-gray-700 p-6 rounded-xl border border-[#D9C08A] dark:border-gray-600">
                             <div class="border-b border-gray-300 dark:border-gray-600 pb-2">
                                 <span class="text-xs text-gray-400 uppercase font-bold tracking-wider">Autor</span>
-                                <p id="studyAuthor" class="text-xl text-blue-600 dark:text-blue-400 font-semibold mt-1"></p>
+                                <p id="studyAuthor" class="text-xl text-[#8C6D3F] dark:text-[#D4BA82] font-semibold mt-1"></p>
                             </div>
                             <div class="border-b border-gray-300 dark:border-gray-600 pb-2">
                                 <span class="text-xs text-gray-400 uppercase font-bold tracking-wider">Fecha</span>
@@ -364,13 +400,17 @@
                                 <p id="studyTechnique" class="text-lg text-purple-600 dark:text-purple-400 font-medium mt-1"></p>
                             </div>
                         </div>
+
+                        <button type="button" onclick="showSymbolism()" class="mt-6 bg-[#6B3F69] hover:bg-[#55315A] text-white px-6 py-2.5 rounded-full font-bold shadow-md transform transition active:scale-95 flex items-center gap-2">
+                            <i class="fas fa-lightbulb"></i> Mostrar simbolismo
+                        </button>
                     </div>
 
                     <div class="min-h-24 bg-gray-100 dark:bg-gray-900 flex flex-wrap items-center px-4 py-3 gap-2 border-t border-gray-200 dark:border-gray-700">
                         <button type="button" onclick="rateCard('muy_mal')" class="flex-1 min-w-[95px] bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 h-12 rounded-xl font-bold border border-red-300 dark:border-red-800 hover:bg-red-200 dark:hover:bg-red-900/50 transition">Muy mal</button>
                         <button type="button" onclick="rateCard('mal')" class="flex-1 min-w-[95px] bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 h-12 rounded-xl font-bold border border-orange-300 dark:border-orange-800 hover:bg-orange-200 dark:hover:bg-orange-900/50 transition">Mal</button>
                         <button type="button" onclick="rateCard('regular')" class="flex-1 min-w-[95px] bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 h-12 rounded-xl font-bold border border-yellow-300 dark:border-yellow-800 hover:bg-yellow-200 dark:hover:bg-yellow-900/50 transition">Regular</button>
-                        <button type="button" onclick="rateCard('bien')" class="flex-1 min-w-[95px] bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 h-12 rounded-xl font-bold border border-blue-300 dark:border-blue-800 hover:bg-blue-200 dark:hover:bg-blue-900/50 transition">Bien</button>
+                        <button type="button" onclick="rateCard('bien')" class="flex-1 min-w-[95px] bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 h-12 rounded-xl font-bold border border-teal-300 dark:border-teal-800 hover:bg-teal-200 dark:hover:bg-teal-900/50 transition">Bien</button>
                         <button type="button" onclick="rateCard('muy_bien')" class="flex-1 min-w-[95px] bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 h-12 rounded-xl font-bold border border-green-300 dark:border-green-800 hover:bg-green-200 dark:hover:bg-green-900/50 transition">Muy bien</button>
                     </div>
                 </div>
@@ -381,6 +421,14 @@
             <h2 class="text-4xl font-bold mb-4">¡Sesión Terminada!</h2>
             <p class="text-gray-400 mb-8">No quedan cartas en la cola de repaso.</p>
             <button type="button" onclick="endStudySession()" class="bg-white text-gray-900 px-8 py-3 rounded-full font-bold hover:scale-105 transition">Volver al Inicio</button>
+        </div>
+
+        <div id="symbolismModal" class="fixed inset-0 z-[70] bg-black bg-opacity-70 hidden flex justify-center items-center p-4" onclick="closeSymbolismModalOverlay(event)">
+            <div class="bg-[#FBF7EE] dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-lg p-6 fade-in relative border border-[#D9C08A] dark:border-gray-600" onclick="event.stopPropagation()">
+                <button type="button" onclick="closeSymbolismModal()" class="absolute top-3 right-3 text-gray-400 hover:text-red-500 text-xl"><i class="fas fa-times"></i></button>
+                <h3 class="text-lg font-bold text-[#6B3F69] dark:text-[#c9a0c7] mb-3 flex items-center gap-2"><i class="fas fa-lightbulb"></i> Lo que representa la obra</h3>
+                <p id="symbolismText" class="text-gray-700 dark:text-gray-200 leading-relaxed whitespace-pre-line"></p>
+            </div>
         </div>
     </div>
 
@@ -430,7 +478,7 @@
         let selectedItems = new Set();
         let showThumbnails = true; // NUEVO ESTADO
 
-        const inputClass = "w-full p-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:border-blue-500 dark:bg-gray-700 dark:text-white";
+        const inputClass = "w-full p-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:border-[#B08D57] dark:bg-gray-700 dark:text-white";
         document.querySelectorAll('.input-std').forEach(el => el.className = inputClass);
 
         // --- AUTH LOGIC ---
@@ -444,12 +492,12 @@
             errorMsg.classList.add('hidden');
 
             if (mode === 'login') {
-                tabLogin.className = "flex-1 pb-2 font-semibold text-blue-600 border-b-2 border-blue-600 transition-colors";
+                tabLogin.className = "flex-1 pb-2 font-semibold text-[#8C6D3F] border-b-2 border-[#8C6D3F] transition-colors";
                 tabRegister.className = "flex-1 pb-2 font-semibold text-gray-500 hover:text-gray-700 dark:text-gray-400 transition-colors";
                 btn.textContent = "Iniciar Sesión";
                 nameField.classList.add('hidden');
             } else {
-                tabRegister.className = "flex-1 pb-2 font-semibold text-blue-600 border-b-2 border-blue-600 transition-colors";
+                tabRegister.className = "flex-1 pb-2 font-semibold text-[#8C6D3F] border-b-2 border-[#8C6D3F] transition-colors";
                 tabLogin.className = "flex-1 pb-2 font-semibold text-gray-500 hover:text-gray-700 dark:text-gray-400 transition-colors";
                 btn.textContent = "Crear Cuenta";
                 nameField.classList.remove('hidden');
@@ -593,10 +641,10 @@
             if (imagesToExport.length === 0) return showToast('error', 'La carpeta está vacía');
 
             let csvContent = "\uFEFF"; 
-            csvContent += "Título;Autor;Fecha;Estilo;Técnica;URL\n";
+            csvContent += "Título;Autor;Fecha;Estilo;Técnica;URL;Lo que representa la obra\n";
 
             imagesToExport.forEach(img => {
-                const row = [img.title, img.author, img.date, img.category, img.technique, img.src].map(item => {
+                const row = [img.title, img.author, img.date, img.category, img.technique, img.src, img.symbolism].map(item => {
                     let str = String(item || "");
                     if (str.search(/(" |;|\n)/g) >= 0) {
                         str = '"' + str.replace(/"/g, '""') + '"';
@@ -642,7 +690,8 @@
                         parentId: currentFolderId, src: url,
                         title: cols[0] || "Sin título", author: cols[1] || "Desconocido",
                         date: cols[2] || "-", category: cols[3] || "General",
-                        technique: cols[4] || "-", location: "", description: ""
+                        technique: cols[4] || "-", location: "", description: "",
+                        symbolism: cols[6] || ""
                     });
                     count++;
                 }
@@ -718,7 +767,8 @@
             document.getElementById('author').value = img.author;
             document.getElementById('date').value = img.date;
             document.getElementById('technique').value = img.technique;
-            document.getElementById('styleInput').value = img.category; 
+            document.getElementById('styleInput').value = img.category;
+            document.getElementById('symbolism').value = img.symbolism || "";
             
             editingImageId = id;
             document.getElementById('formTitle').textContent = "Editar Imagen";
@@ -746,7 +796,8 @@
                 author: document.getElementById('author').value || "Desconocido",
                 date: document.getElementById('date').value || "-",
                 technique: document.getElementById('technique').value || "-",
-                category: document.getElementById('styleInput').value || "General" 
+                category: document.getElementById('styleInput').value || "General",
+                symbolism: document.getElementById('symbolism').value || ""
             };
 
             if (editingImageId) {
@@ -783,11 +834,11 @@
             
             if(isSelectionMode) {
                 bar.classList.remove('translate-y-full');
-                btn.classList.add('bg-blue-600');
+                btn.classList.add('bg-[#8C6D3F]');
                 btn.classList.remove('bg-gray-600');
             } else {
                 bar.classList.add('translate-y-full');
-                btn.classList.remove('bg-blue-600');
+                btn.classList.remove('bg-[#8C6D3F]');
                 btn.classList.add('bg-gray-600');
             }
             render(); updateSelectionCount();
@@ -824,7 +875,7 @@
             if(selectedItems.size === 0) return;
             const list = document.getElementById('moveFolderList');
             list.innerHTML = '';
-            list.innerHTML += `<div onclick="moveSelectedTo(null)" class="p-3 border-b hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer dark:text-white flex items-center gap-2"><i class="fas fa-home text-blue-500"></i> Inicio (Raíz)</div>`;
+            list.innerHTML += `<div onclick="moveSelectedTo(null)" class="p-3 border-b hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer dark:text-white flex items-center gap-2"><i class="fas fa-home text-[#B08D57]"></i> Inicio (Raíz)</div>`;
             fileSystem.folders.forEach(f => {
                 if(f.id !== currentFolderId) { 
                    list.innerHTML += `<div onclick="moveSelectedTo(${f.id})" class="p-3 border-b hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer dark:text-white flex items-center gap-2"><i class="fas fa-folder text-yellow-500"></i> ${f.name}</div>`; 
@@ -981,6 +1032,19 @@
             document.getElementById('studyTechnique').textContent = card.technique || "-";
         }
         function flipCardToBack() { document.getElementById('studyCardInner').classList.add('flipped'); }
+
+        // --- SIMBOLISMO (ventana flotante independiente del giro de la carta) ---
+        function showSymbolism() {
+            if (studyQueue.length === 0) return;
+            const card = studyQueue[0];
+            const text = (card.symbolism && card.symbolism.trim())
+                ? card.symbolism
+                : 'No se ha añadido información de simbolismo para esta obra.';
+            document.getElementById('symbolismText').textContent = text;
+            document.getElementById('symbolismModal').classList.remove('hidden');
+        }
+        function closeSymbolismModal() { document.getElementById('symbolismModal').classList.add('hidden'); }
+        function closeSymbolismModalOverlay(e) { if (e.target.id === 'symbolismModal') closeSymbolismModal(); }
         function persistActiveStudySession(lastRating = null) {
             if (!activeStudySessionId) return;
             normalizeFileSystem();
@@ -1032,10 +1096,10 @@
 
             currentFolders.forEach(folder => {
                 const div = document.createElement('div');
-                div.className = 'folder-card bg-yellow-50 dark:bg-gray-700 border border-yellow-200 dark:border-gray-600 rounded-xl overflow-hidden shadow-sm flex flex-col aspect-square';
+                div.className = 'folder-card bg-[#F3E7C9] dark:bg-gray-700 border border-[#D9C08A] dark:border-gray-600 rounded-2xl overflow-hidden shadow-sm flex flex-col aspect-square';
                 div.innerHTML = `
-                    <div onclick="enterFolder(${folder.id})" class="flex-grow flex flex-col items-center justify-center cursor-pointer hover:bg-yellow-100 dark:hover:bg-gray-600 transition p-2 w-full">
-                        <i class="fas fa-folder text-yellow-400 text-5xl mb-2 drop-shadow-sm"></i>
+                    <div onclick="enterFolder(${folder.id})" class="flex-grow flex flex-col items-center justify-center cursor-pointer hover:bg-[#EBDCB2] dark:hover:bg-gray-600 transition p-2 w-full">
+                        <i class="fas fa-folder text-[#B08D57] text-5xl mb-2 drop-shadow-sm"></i>
                         <span class="font-bold text-gray-700 dark:text-gray-200 text-center text-sm truncate w-full px-1">${folder.name}</span>
                     </div>
                     <button type="button" onclick="deleteFolder(event, ${folder.id})" class="bg-red-50 dark:bg-gray-800 text-red-400 hover:text-red-600 hover:bg-red-100 dark:hover:bg-gray-600 py-2 border-t border-yellow-200 dark:border-gray-600 transition flex items-center justify-center gap-1 text-xs uppercase font-bold tracking-wide w-full">
@@ -1048,7 +1112,7 @@
             currentImages.forEach(img => {
                 const isSelected = selectedItems.has(img.id);
                 const div = document.createElement('div');
-                div.className = `image-card bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden flex flex-col h-full relative transition-all duration-200 ${isSelected ? 'selected' : ''}`;
+                div.className = `image-card bg-[#FBF7EE] dark:bg-gray-800 rounded-2xl shadow-sm border border-[#E8DCC0] dark:border-gray-700 overflow-hidden flex flex-col h-full relative transition-all duration-200 ${isSelected ? 'selected' : ''}`;
                 
                 // LÓGICA PARA MOSTRAR/OCULTAR MINIATURA
                 let imageElement = '';
@@ -1060,7 +1124,7 @@
 
                 div.innerHTML = `
                     <div onclick="handleImageClick(${img.id})" class="flex-grow flex flex-col cursor-pointer group relative">
-                         <div class="check-overlay absolute inset-0 bg-blue-500/20 z-10 flex items-center justify-center pointer-events-none">
+                         <div class="check-overlay absolute inset-0 bg-[#B08D57]/20 z-10 flex items-center justify-center pointer-events-none">
                             <i class="fas fa-check-circle text-white text-4xl drop-shadow-lg"></i>
                         </div>
 
@@ -1073,7 +1137,7 @@
                         </div>
                     </div>
                     <div class="flex border-t border-gray-100 dark:border-gray-700">
-                        <button type="button" onclick="editImage(event, ${img.id})" class="flex-1 bg-gray-50 dark:bg-gray-900 text-blue-500 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-gray-800 py-2 border-r border-gray-100 dark:border-gray-700 flex items-center justify-center gap-1 text-xs uppercase font-bold transition ${isSelectionMode ? 'opacity-30 pointer-events-none':''}">
+                        <button type="button" onclick="editImage(event, ${img.id})" class="flex-1 bg-gray-50 dark:bg-gray-900 text-[#B08D57] hover:text-[#6E5530] hover:bg-[#F7F1E5] dark:hover:bg-gray-800 py-2 border-r border-gray-100 dark:border-gray-700 flex items-center justify-center gap-1 text-xs uppercase font-bold transition ${isSelectionMode ? 'opacity-30 pointer-events-none':''}">
                             <i class="fas fa-edit"></i>
                         </button>
                         <button type="button" onclick="deleteImage(event, ${img.id})" class="flex-1 bg-gray-50 dark:bg-gray-900 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-gray-800 py-2 flex items-center justify-center gap-1 text-xs uppercase font-bold transition ${isSelectionMode ? 'opacity-30 pointer-events-none':''}">
@@ -1104,7 +1168,7 @@
             if (currentFolderId === null) return;
             let path = [], curr = fileSystem.folders.find(f => f.id === currentFolderId);
             while(curr) { path.unshift(curr); curr = fileSystem.folders.find(f => f.id === curr.parentId); }
-            path.forEach(f => container.innerHTML += `<span class="mx-2 text-gray-400">/</span><button type="button" onclick="enterFolder(${f.id})" class="hover:text-blue-500 font-medium">${f.name}</button>`);
+            path.forEach(f => container.innerHTML += `<span class="mx-2 text-gray-400">/</span><button type="button" onclick="enterFolder(${f.id})" class="hover:text-[#8C6D3F] font-medium">${f.name}</button>`);
         }
         function updateCurrentFolderLabel() { document.getElementById('currentFolderLabel').textContent = fileSystem.folders.find(f => f.id === currentFolderId)?.name || "Inicio"; }
         function createFolder() {
